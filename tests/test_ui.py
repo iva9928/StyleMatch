@@ -165,3 +165,171 @@ def test_image_preview_preserves_aspect_ratio(app, monkeypatch, tmp_path):
     assert add_clothing.filename_label.cget("text") == image_path.name
     assert add_clothing.preview_image.width() == 69
     assert add_clothing.preview_image.height() == 138
+
+
+def test_add_button_adds_item_and_renders_complete_wardrobe_card(
+    app,
+    tk_root,
+    monkeypatch,
+    tmp_path,
+):
+    add_clothing = app.screens["Add Clothing"]
+    wardrobe = app.screens["My Wardrobe"]
+    image_path = tmp_path / "pink-shirt.jpg"
+    Image.new("RGB", (80, 160), color="pink").save(image_path)
+    confirmations = []
+    monkeypatch.setattr(
+        "stylematch.ui.screens.messagebox.showinfo",
+        lambda *args, **_kwargs: confirmations.append(args),
+    )
+
+    add_clothing.name_var.set(" pink T-shirt ")
+    add_clothing.category_var.set("Tops")
+    add_clothing.selected_image = str(image_path)
+    add_clothing.add_button.invoke()
+    tk_root.update_idletasks()
+
+    items = app.clothing_manager.list_items()
+    assert len(items) == 1
+    assert items[0].name == "pink T-shirt"
+    assert items[0].category == "Tops"
+    assert confirmations and confirmations[0][0] == "Clothing added"
+    assert add_clothing.name_var.get() == ""
+    assert add_clothing.category_var.get() == ""
+    assert add_clothing.selected_image is None
+
+    cards = wardrobe.gallery.content.winfo_children()
+    assert len(cards) == 1
+    card = cards[0]
+    assert any(
+        child.winfo_class() == "TButton" and child.cget("text") == "Delete"
+        for child in card.winfo_children()
+    )
+    assert any(
+        child.winfo_class() == "TLabel" and child.cget("text") == "pink T-shirt"
+        for child in card.winfo_children()
+    )
+    assert any(
+        child.winfo_class() == "TLabel" and child.cget("text") == "Tops"
+        for child in card.winfo_children()
+    )
+    image_box = card.winfo_children()[0]
+    image_label = image_box.winfo_children()[0]
+    assert image_label.cget("image")
+    assert len(wardrobe._photo_images) == 1
+
+
+def test_add_clothing_screen_does_not_show_obsolete_placeholder(app):
+    add_clothing = app.screens["Add Clothing"]
+    labels = []
+
+    def collect_labels(widget):
+        for child in widget.winfo_children():
+            if child.winfo_class() == "TLabel":
+                labels.append(child.cget("text"))
+            collect_labels(child)
+
+    collect_labels(add_clothing)
+
+    assert "This button is a placeholder; no clothing data will be saved." not in labels
+
+
+def test_wardrobe_filters_added_items_and_shows_category_empty_state(
+    app,
+    tk_root,
+    tmp_path,
+):
+    wardrobe = app.screens["My Wardrobe"]
+    image_path = tmp_path / "top.png"
+    Image.new("RGB", (80, 80), color="pink").save(image_path)
+    app.clothing_manager.add_item("Pink top", "Tops", image_path)
+    app.clothing_manager.add_item("Blue shoes", "Shoes", image_path)
+
+    wardrobe.category_select.set("Tops")
+    wardrobe.category_select.event_generate("<<ComboboxSelected>>")
+    tk_root.update_idletasks()
+
+    assert len(wardrobe.gallery.content.winfo_children()) == 1
+    assert wardrobe.gallery.content.winfo_children()[0].winfo_children()[1].cget(
+        "text"
+    ) == "Pink top"
+
+    wardrobe.category_select.set("Dresses")
+    wardrobe.category_select.event_generate("<<ComboboxSelected>>")
+    tk_root.update_idletasks()
+
+    assert wardrobe.empty_message.cget("text") == "No dresses in your wardrobe yet."
+
+
+@pytest.mark.parametrize(("confirm", "expected_count"), [(True, 0), (False, 1)])
+def test_wardrobe_delete_confirmation_updates_only_when_confirmed(
+    app,
+    monkeypatch,
+    tmp_path,
+    confirm,
+    expected_count,
+):
+    wardrobe = app.screens["My Wardrobe"]
+    image_path = tmp_path / "item.png"
+    Image.new("RGB", (80, 80), color="pink").save(image_path)
+    item = app.clothing_manager.add_item("Pink top", "Tops", image_path)
+    wardrobe.refresh()
+    prompts = []
+    monkeypatch.setattr(
+        "stylematch.ui.screens.messagebox.askyesno",
+        lambda *args, **_kwargs: prompts.append(args) or confirm,
+    )
+
+    wardrobe._delete_item(item.id)
+
+    assert len(prompts) == 1
+    assert len(app.clothing_manager.list_items()) == expected_count
+    if confirm:
+        assert wardrobe.empty_message is not None
+    else:
+        assert len(wardrobe.gallery.content.winfo_children()) == 1
+
+
+def test_wardrobe_renders_multiple_compact_cards(app, tk_root, tmp_path):
+    wardrobe = app.screens["My Wardrobe"]
+    image_path = tmp_path / "item.png"
+    Image.new("RGB", (160, 100), color="pink").save(image_path)
+    for index in range(5):
+        app.clothing_manager.add_item(f"Item {index}", "Tops", image_path)
+
+    tk_root.update()
+
+    cards = wardrobe.gallery.content.winfo_children()
+    assert len(cards) == 5
+    assert wardrobe._columns > 1
+    assert len(wardrobe._photo_images) == 5
+    assert all(
+        card.winfo_children()[0].winfo_children()[0].cget("image")
+        for card in cards
+    )
+    assert {
+        child.cget("text")
+        for card in cards
+        for child in card.winfo_children()
+        if child.winfo_class() == "TLabel"
+        and child.cget("text").startswith("Item ")
+    } == {f"Item {index}" for index in range(5)}
+
+
+def test_missing_image_in_wardrobe_uses_fallback_without_crashing(
+    app,
+    tk_root,
+    tmp_path,
+):
+    image_path = tmp_path / "item.png"
+    Image.new("RGB", (80, 80), color="pink").save(image_path)
+    item = app.clothing_manager.add_item("Pink top", "Tops", image_path)
+    image_path.unlink()
+    wardrobe = app.screens["My Wardrobe"]
+
+    wardrobe.refresh()
+    tk_root.update_idletasks()
+
+    image_box = wardrobe.gallery.content.winfo_children()[0].winfo_children()[0]
+    assert image_box.winfo_children()[0].cget("text") == "Image unavailable"
+    assert app.clothing_manager.list_items() == [item]

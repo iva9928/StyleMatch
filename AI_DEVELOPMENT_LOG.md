@@ -577,15 +577,619 @@ tests to validate important functionality.
 GitHub Copilot reported 13 passing tests.
 Final independent verification is pending.
 
-### Next Development Phase
 
-Day 3 – Clothing & Image Management.
+---
 
-Planned features:
-- Adding clothing items
-- Image import and management
-- Clothing categories
-- Wardrobe gallery population
-- Clothing deletion
-- Business logic tests
+# Day 3 – Clothing & Image Management
+
+**Date:** October 20, 2026
+**Module:** Module 2 – Clothing & Image Management
+**Primary AI Tool:** GitHub Copilot Free
+**Supporting Tool:** ChatGPT
+**Technologies:** Python, Tkinter, ttk, Pillow, pytest
+
+## 1. Development Objective
+
+The objective of Day 3 was to transform the existing
+clothing UI placeholders into a functional digital wardrobe.
+
+The application needed to support:
+- Adding clothing items with names, categories, and images.
+- Displaying clothing in a scrollable gallery.
+- Filtering items by category.
+- Deleting clothing items after confirmation.
+- Validating user input and image files.
+- Preserving the existing UI architecture and visual style.
+
+Clothing data would be stored in memory during the
+application session. JSON persistence and outfit creation
+were intentionally excluded from this module.
+
+## 2. Prompt 1 – Clothing Management Planning
+
+**AI Tool:** GitHub Copilot Free
+**Purpose:** Analyze the architecture and plan Module 2.
+
+### Prompt
+
+We are continuing the development of StyleMatch – Virtual Wardrobe & Outfit Planner, my university AI-Assisted Development exam project.
+
+Days 1 and 2 have been completed successfully.
+
+Current project status:
+- Python 3.12 desktop application using Tkinter, ttk, and Pillow.
+- Modular project architecture.
+- Four functioning UI screens: My Wardrobe, Add Clothing, Outfit Builder, and Saved Outfits.
+- Automated pytest test suite with 13 passing tests.
+- UI implementation and tests committed to Git.
+
+Today we are working on Module 2 – Clothing & Image Management.
+
+Before planning, inspect the existing project architecture and these files:
+- stylematch/models/clothing.py
+- stylematch/ui/main_window.py
+- stylematch/ui/screens.py
+- stylematch/ui/theme.py
+- stylematch/storage/json_store.py
+- stylematch/app.py
+- tests/test_ui.py
+- pyproject.toml
+
+GOAL:
+
+Turn the existing Add Clothing and My Wardrobe UI placeholders into a functional digital wardrobe.
+
+REQUIRED FUNCTIONALITY:
+
+1. Add Clothing
+- Enter a clothing item name.
+- Select a category: Tops, Bottoms, Dresses, Shoes, Outerwear.
+- Select a local image file.
+- Validate user input.
+- Add the clothing item to the application's current in-memory collection.
+- Display a success message only after the item has actually been added.
+- Keep the image aspect ratio unchanged.
+
+2. My Wardrobe
+- Display added clothing items in a scrollable gallery.
+- Show the item's image, name, and category.
+- Filter items by category.
+- Update the gallery immediately after an item is added or removed.
+- Show an appropriate empty state when no items match the selected filter.
+
+3. Delete Clothing
+- Provide a delete action for each item.
+- Ask for confirmation before deleting.
+- Update the wardrobe gallery after deletion.
+
+4. Image Management
+- Support common formats such as PNG, JPEG, and WEBP.
+- Handle invalid, missing, or unreadable image files gracefully.
+- Use Pillow for image loading and thumbnail creation.
+- Preserve original image proportions.
+- Avoid unnecessary image duplication.
+
+ARCHITECTURAL REQUIREMENTS:
+
+- Keep data models separate from the Tkinter UI.
+- Introduce a small clothing management service if appropriate.
+- Reuse existing classes and components wherever possible.
+- Avoid unnecessary external dependencies.
+- Preserve all four existing screens and the current visual design.
+- Do not implement outfit generation or outfit saving yet.
+- Do not integrate JSON persistence during this phase; that will be handled separately.
+- Data may remain in memory while the application is open.
+- Keep the scope appropriate for a small university project.
+
+FOR NOW, PROVIDE ONLY AN IMPLEMENTATION PLAN.
+
+Explain:
+
+1. What the current clothing model and UI already support.
+2. Which files need to be created or modified.
+3. What data fields each clothing item needs.
+4. How clothing items will be stored in memory.
+5. How the UI will communicate with the clothing management logic.
+6. How image loading and resizing will be handled safely.
+7. How validation, filtering, and deletion will work.
+8. What automated tests should be created.
+9. What manual test scenarios should be performed.
+10. Potential implementation risks and how to avoid them.
+
+IMPORTANT:
+Do not create or modify any files yet.
+Do not generate implementation code yet.
+Do not alter the existing project architecture unnecessarily.
+Wait for my approval before implementation.
+
+### AI Response and Reasoning
+
+GitHub Copilot inspected the existing project and proposed:
+- Reusing the ClothingItem model.
+- Creating a dedicated in-memory ClothingManager.
+- Creating shared image utilities with Pillow.
+- Injecting a shared manager into the relevant UI screens.
+- Reusing the existing gallery and navigation.
+- Testing business logic separately from Tkinter widgets.
+
+The plan separated data management, image processing,
+and graphical presentation.
+
+No files were modified during the planning phase.
+
+## 3. Prompt 2 – Clothing Management Implementation
+
+**AI Tool:** GitHub Copilot Free
+**Purpose:** Implement the planned clothing functionality.
+
+### Prompt
+
+I approve the Module 2 implementation plan for StyleMatch – Virtual Wardrobe & Outfit Planner.
+
+Now implement Clothing & Image Management in the existing Python project.
+
+First, inspect the current project files and preserve the existing working architecture.
+
+IMPORTANT CONTEXT:
+- Days 1 and 2 are complete.
+- The application already has four functioning Tkinter screens.
+- The previous test suite had 13 passing tests.
+- The UI design and navigation must remain intact.
+- This is a small university AI-Assisted Development exam project.
+
+IMPLEMENTATION REQUIREMENTS:
+
+1. CLOTHING MANAGEMENT SERVICE
+
+Create:
+- stylematch/services/__init__.py
+- stylematch/services/clothing_manager.py
+
+Implement an in-memory clothing manager.
+
+Use the existing ClothingItem model from stylematch/models/clothing.py.
+
+The manager must support:
+- Adding a clothing item.
+- Listing all clothing items.
+- Filtering by category.
+- Deleting clothing items using their unique IDs.
+- Validating names, categories, and images.
+
+Each item must contain:
+- A unique string ID.
+- A non-empty, trimmed name.
+- A valid clothing category.
+- An image path.
+
+Use the existing category names:
+Tops, Bottoms, Dresses, Shoes, Outerwear.
+
+Do not implement JSON persistence yet.
+
+2. IMAGE MANAGEMENT
+
+Create:
+- stylematch/images.py
+
+Implement reusable Pillow image utilities.
+
+Requirements:
+- Accept PNG, JPEG, and WEBP images.
+- Reject missing, corrupt, or unsupported images.
+- Preserve the image aspect ratio.
+- Generate bounded thumbnail previews.
+- Use high-quality resampling.
+- Close image files correctly after reading.
+- Do not modify original images.
+- Do not create unnecessary image copies.
+
+If a previously added image becomes unavailable, the wardrobe must display an appropriate fallback instead of crashing.
+
+3. ADD CLOTHING SCREEN
+
+Update the existing Add Clothing screen.
+
+The user must be able to:
+- Enter a clothing name.
+- Select a category.
+- Select an image from the computer.
+- Preview the selected image.
+- Click Add Clothing to actually add the item.
+
+Validation requirements:
+- Reject an empty or whitespace-only name.
+- Reject missing or invalid categories.
+- Reject missing, unreadable, or unsupported images.
+- Show clear error messages.
+- Never report success if adding fails.
+
+After a successful addition:
+- Add the item to the shared clothing manager.
+- Refresh the wardrobe gallery.
+- Display a clear success message.
+- Reset the form to its initial state.
+
+4. MY WARDROBE SCREEN
+
+Replace the existing empty-only placeholder with a functional scrollable clothing gallery.
+
+Each clothing card must display:
+- Clothing image thumbnail.
+- Clothing name.
+- Clothing category.
+- Delete button.
+
+Requirements:
+- Keep the existing minimalist beige, white, and dark brown visual design.
+- Use the existing ScrollableArea where possible.
+- Display cards in an organized, responsive layout.
+- Preserve image proportions.
+- Support the existing category filter.
+- Update the gallery immediately after adding or deleting items.
+- Display the existing general empty state when no clothes exist.
+- Display a category-specific empty message when no items match the selected filter.
+- Avoid duplicate or stale widgets when refreshing the gallery.
+
+5. DELETE CLOTHING
+
+Each clothing card must have a Delete action.
+
+When Delete is clicked:
+- Show a confirmation dialog.
+- If the user confirms, delete the item by ID.
+- If the user cancels, do not change anything.
+- Refresh the gallery after successful deletion.
+
+Do not delete the original image file from the user's computer.
+
+6. UI INTEGRATION
+
+Update:
+- stylematch/ui/main_window.py
+- stylematch/ui/screens.py
+
+Create one shared ClothingManager instance for the application session.
+
+Pass this manager to the UI components that need it.
+
+Keep clothing business logic separate from Tkinter widget code.
+
+Preserve:
+- My Wardrobe
+- Add Clothing
+- Outfit Builder
+- Saved Outfits
+
+Do not modify the functionality of Outfit Builder or Saved Outfits during this step.
+
+Avoid unnecessary dependencies and major architectural refactoring.
+
+7. TEST COMPATIBILITY
+
+Preserve the existing automated tests.
+
+Do not delete, disable, or weaken existing tests to hide failures.
+
+You may adapt tests only if a legitimate interface change requires it, and explain the reason.
+
+Do not implement the full new test suite yet; comprehensive automated testing will be handled in Prompt 3.
+
+8. DOCUMENTATION
+
+Update README.md to describe the new working in-memory clothing management functionality.
+
+Do not modify AI_DEVELOPMENT_LOG.md. I will document the AI-assisted workflow myself.
+
+9. QUALITY REQUIREMENTS
+
+- Keep the code readable and appropriately modular.
+- Use meaningful names and consistent Python conventions.
+- Handle expected errors gracefully.
+- Do not use paid APIs.
+- Do not implement outfit creation logic.
+- Do not integrate JSON persistence.
+- Do not modify unrelated project files.
+
+AFTER IMPLEMENTATION:
+
+1. List every created or modified file.
+2. Explain the clothing manager and UI integration.
+3. Provide the exact command to launch StyleMatch.
+4. Explain how to manually test adding, filtering, and deleting clothing items.
+5. Run existing tests if execution is available.
+6. Report actual test results and limitations.
+7. Clearly state what remains unfinished.
+
+Implement the functionality now.
+
+### AI-Generated Changes
+
+Created:
+- stylematch/services/__init__.py
+- stylematch/services/clothing_manager.py
+- stylematch/images.py
+
+Modified:
+- stylematch/ui/main_window.py
+- stylematch/ui/screens.py
+- README.md
+
+Implemented:
+- In-memory clothing management.
+- Name, category, and image validation.
+- Clothing image previews.
+- Wardrobe cards and category filtering.
+- Delete confirmation.
+- Gallery refresh after data changes.
+
+GitHub Copilot reported that the original 13 tests passed.
+
+However, manual testing revealed a runtime defect during
+the wardrobe gallery refresh.
+
+This led to an additional debugging interaction.
+
+## 4. Additional Prompt – Debugging a Real UI Defect
+
+**AI Tool:** GitHub Copilot Free
+**Purpose:** Investigate and fix a defect found manually.
+
+### Prompt
+
+We need to debug Module 2 – Clothing & Image Management.
+
+The implementation is not working correctly during manual testing.
+
+OBSERVED PROBLEMS:
+
+1. On the Add Clothing screen, the old message is still displayed:
+"This button is a placeholder; no clothing data will be saved."
+
+2. I entered a valid clothing name ("pink T-shirt"), selected the Tops category, and selected a valid JPG image.
+
+3. When clicking the Add Clothing button, I did not observe the expected successful behavior or confirmation.
+
+4. On the My Wardrobe screen, I can see a large beige rectangle, but I do not see a complete clothing card with a visible image, item name, category, and Delete button.
+
+YOUR TASK:
+
+1. Inspect the actual current implementations in:
+- stylematch/ui/screens.py
+- stylematch/ui/main_window.py
+- stylematch/services/clothing_manager.py
+- stylematch/images.py
+- stylematch/models/clothing.py
+
+2. Trace the Add Clothing button callback and verify that it calls the shared ClothingManager.add operation.
+
+3. Check whether the successful add flow updates the wardrobe gallery, displays confirmation, and resets the form.
+
+4. Check whether the wardrobe gallery correctly creates its clothing cards and displays the images, names, categories, and Delete buttons.
+
+5. Verify that image references are retained and thumbnails display correctly.
+
+6. Investigate whether the large beige rectangle is an empty image placeholder or a layout/rendering defect.
+
+7. Fix the actual causes of these issues. Do not simply hide error messages or remove existing functionality.
+
+8. Remove the outdated placeholder text only when the Add Clothing functionality actually works.
+
+9. Preserve the existing visual theme and all four screens.
+
+10. Do not implement JSON persistence, outfit generation, or unrelated features.
+
+11. Run the existing pytest tests, and add a focused regression test for any confirmed defect where practical.
+
+12. Explain the root cause, the files changed, and the actual test results.
+
+IMPORTANT:
+Manual testing revealed a problem even though the previous 13 automated tests passed. Do not assume that passing tests prove the new functionality works.
+
+### Problem Identified
+
+The wardrobe card mixed Tkinter's pack and grid geometry
+managers for widgets with the same parent.
+
+This caused a runtime exception while refreshing the
+wardrobe gallery after adding an item.
+
+The ClothingManager had already stored the item, but
+the interface stopped before displaying the success
+notification and resetting the form.
+
+### AI-Assisted Fix
+
+GitHub Copilot:
+- Corrected the image label's parent container.
+- Removed the outdated placeholder message.
+- Added regression tests for successful adding and
+  the absence of the obsolete placeholder text.
+
+Modified:
+- stylematch/ui/screens.py
+- tests/test_ui.py
+
+**AI-reported result:** 15 tests passed.
+
+**Manual verification:** The clothing item subsequently
+appeared with its image, name, category, and Delete button.
+
+## 5. Prompt 3 – Automated Testing & Refinement
+
+**AI Tool:** GitHub Copilot Free
+**Purpose:** Expand test coverage and refine the gallery.
+
+### Prompt
+
+We have successfully implemented and manually debugged Module 2 – Clothing & Image Management.
+
+Manual testing confirmed that a clothing item now appears in My Wardrobe with its image, name, category, and Delete button.
+
+The previous bug caused by mixing pack and grid in the same parent container has been fixed.
+
+Now perform the final testing and refinement phase for Module 2.
+
+TASKS:
+
+1. Review the existing ClothingManager, image utilities, and UI integration.
+
+2. Create a dedicated test file:
+   tests/test_clothing_manager.py
+
+Test:
+- Adding valid clothing items.
+- Unique item IDs.
+- Trimming clothing names.
+- Rejecting empty names.
+- Rejecting invalid categories.
+- Rejecting missing images.
+- Rejecting corrupted or unsupported image files.
+- Listing all clothing items.
+- Filtering by category.
+- Deleting an existing item.
+- Handling deletion of a nonexistent ID.
+
+3. Create additional tests for image utilities:
+- PNG, JPEG, and WEBP support.
+- Portrait and landscape thumbnails.
+- Preserving original image proportions.
+- Handling unavailable image paths gracefully.
+- Ensuring original image files remain unchanged.
+
+4. Extend the existing UI tests where necessary:
+- Successful clothing addition.
+- Form reset after success.
+- Gallery refresh.
+- Category filtering.
+- Confirmed deletion.
+- Cancelled deletion.
+- Proper image reference retention.
+
+5. Improve the wardrobe gallery layout:
+- Display clothing items as compact, elegant cards.
+- Use a responsive multi-column layout when space allows.
+- Keep images centered and undistorted.
+- Place item name, category, and Delete action neatly inside each card.
+- Preserve the existing beige, white, and dark brown visual design.
+- Ensure that multiple clothing items display correctly and the gallery remains scrollable.
+
+6. Preserve all four existing screens and the application architecture.
+
+7. Do not implement JSON persistence, outfit generation, or outfit saving.
+
+8. Run the complete pytest test suite.
+Do not remove or weaken failing tests to obtain passing results.
+
+9. Report:
+- Files created or modified.
+- Problems discovered.
+- Corrections made.
+- Actual test results.
+- Any remaining limitations.
+
+IMPORTANT:
+Keep the implementation appropriate for a small university project.
+Preserve the functionality that already works.
+Do not modify AI_DEVELOPMENT_LOG.md.
+
+### AI-Generated Changes
+
+Created:
+- tests/test_clothing_manager.py
+
+Modified:
+- stylematch/ui/screens.py
+- tests/test_ui.py
+
+GitHub Copilot:
+- Added service validation and image utility tests.
+- Added UI tests for filtering, deletion, multiple
+  cards, unavailable images, and image references.
+- Changed gallery cards to a compact arrangement.
+- Fixed obsolete grid-column weights during refresh.
+- Preserved image aspect ratios.
+
+## 6. Final Testing Results
+
+**Automated testing:**
+
+Command:
+.\.venv\Scripts\python.exe -m pytest -v
+
+Result:
+37 passed in 5.07 seconds.
+
+The developer independently executed the complete test
+suite locally and confirmed all 37 tests passed.
+
+**Manual testing:**
+
+The developer:
+- Added three clothing items with images.
+- Confirmed correct card images, names, and categories.
+- Verified the gallery's multi-column layout.
+- Verified category filters.
+- Verified Delete confirmation.
+- Verified that cancelling deletion preserves the item.
+- Confirmed that the final application remains usable.
+
+## 7. Challenges and Lessons Learned
+
+The most important challenge was a Tkinter geometry
+management error caused by mixing pack and grid within
+the same parent container.
+
+The initial implementation passed the existing tests,
+but manual testing exposed a defect that those tests
+did not cover.
+
+GitHub Copilot identified the root cause and implemented
+a fix. Additional regression tests were then introduced.
+
+The main lesson was that passing automated tests does
+not guarantee the absence of UI defects. Combining
+manual verification, debugging, and automated regression
+testing produces a more reliable application.
+
+The final gallery also required refinement to display
+multiple clothing items in a compact multi-column layout.
+
+## 8. AI Tool Comparison
+
+GitHub Copilot Free was responsible for the primary
+code generation, debugging, refactoring, and test creation.
+
+ChatGPT assisted with development planning, prompt
+preparation, debugging instructions, and documentation.
+
+GitHub Copilot was particularly useful for changes that
+required understanding and editing several related
+project files inside Visual Studio Code.
+
+## 9. Day 3 Summary
+
+Completed:
+- Functional clothing addition.
+- Clothing data validation.
+- PNG, JPEG, and WEBP image support.
+- Image thumbnails preserving aspect ratio.
+- In-memory clothing management.
+- Multi-column wardrobe gallery.
+- Category filters.
+- Confirmed clothing deletion.
+- Improved error handling.
+- Automated unit and UI tests.
+- Independent confirmation of 37 passing tests.
+
+Remaining limitations:
+- Clothing items are stored only in memory.
+- Items disappear when the app closes.
+- Original image files are referenced by path.
+- Outfit creation and saving are not implemented yet.
+
+Next step:
+Integrate the remaining modules, including persistent
+storage and outfit management.
+
 

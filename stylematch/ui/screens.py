@@ -5,11 +5,12 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from PIL import Image, ImageTk, UnidentifiedImageError
+from PIL import Image, ImageTk
 
+from stylematch.images import ImageValidationError, create_thumbnail
+from stylematch.models.clothing import ClothingItem
+from stylematch.services.clothing_manager import CATEGORIES, ClothingManager
 from stylematch.ui.theme import BEIGE, BROWN, CREAM, MUTED_BROWN, WHITE
-
-CATEGORIES = ("Tops", "Bottoms", "Dresses", "Shoes", "Outerwear")
 
 
 def add_page_heading(parent: ttk.Frame, title: str, description: str) -> None:
@@ -72,10 +73,14 @@ class WardrobeScreen(ttk.Frame):
     def __init__(
         self,
         parent: ttk.Frame,
+        manager: ClothingManager,
         on_add_clothing: Callable[[], None],
     ) -> None:
         super().__init__(parent, style="Content.TFrame")
+        self.manager = manager
         self.on_add_clothing = on_add_clothing
+        self._photo_images: list[ImageTk.PhotoImage] = []
+        self._columns = 0
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(2, weight=1)
 
@@ -113,48 +118,152 @@ class WardrobeScreen(ttk.Frame):
 
         self.gallery = ScrollableArea(self)
         self.gallery.grid(row=2, column=0, sticky="nsew")
-        self.gallery.content.grid_rowconfigure(0, weight=1)
-        empty_state = ttk.Frame(
-            self.gallery.content,
-            style="Panel.TFrame",
-            padding=(28, 34),
-        )
-        empty_state.grid(row=0, column=0, sticky="nsew")
-        empty_state.grid_columnconfigure(0, weight=1)
-        ttk.Label(
-            empty_state,
-            text="A wardrobe made yours",
-            style="EmptyTitle.TLabel",
-        ).grid(row=0, column=0, pady=(0, 8))
-        self.empty_message = ttk.Label(
-            empty_state,
-            text="Your wardrobe is ready for its first piece.",
-            style="Body.TLabel",
-            wraplength=420,
-            justify="center",
-        )
-        self.empty_message.grid(row=1, column=0, pady=(0, 20))
-        ttk.Button(
-            empty_state,
-            text="Add your first item",
-            style="Secondary.TButton",
-            command=self.on_add_clothing,
-        ).grid(row=2, column=0)
+        self.gallery.canvas.bind("<Configure>", self._on_gallery_resize, add="+")
+        self.empty_message: ttk.Label | None = None
+        self.refresh()
 
     def _update_empty_state(self, _event: tk.Event) -> None:
+        self.refresh()
+
+    def _on_gallery_resize(self, _event: tk.Event) -> None:
+        items = self._filtered_items()
+        columns = self._column_count(len(items))
+        if items and columns != self._columns:
+            self.refresh()
+
+    def _filtered_items(self) -> list[ClothingItem]:
         category = self.category_filter.get()
-        message = (
-            "Your wardrobe is ready for its first piece."
-            if category == "All"
-            else f"No {category.lower()} in your wardrobe yet."
+        return self.manager.list_items(None if category == "All" else category)
+
+    def _column_count(self, item_count: int) -> int:
+        available_width = max(1, self.gallery.canvas.winfo_width() - 40)
+        return max(1, min(item_count or 1, available_width // 230))
+
+    def refresh(self) -> None:
+        """Redraw the current filter without retaining stale widgets or images."""
+        content = self.gallery.content
+        for column in range(self._columns):
+            content.grid_columnconfigure(column, weight=0, uniform="")
+        for child in content.winfo_children():
+            child.destroy()
+        self.empty_message = None
+        self._photo_images.clear()
+
+        items = self._filtered_items()
+        if not items:
+            category = self.category_filter.get()
+            message = (
+                "Your wardrobe is ready for its first piece."
+                if category == "All" and not self.manager.list_items()
+                else (
+                    "No clothing items match this filter."
+                    if category == "All"
+                    else f"No {category.lower()} in your wardrobe yet."
+                )
+            )
+            empty_state = ttk.Frame(content, style="Panel.TFrame", padding=(28, 34))
+            empty_state.grid(row=0, column=0, sticky="nsew")
+            empty_state.grid_columnconfigure(0, weight=1)
+            ttk.Label(
+                empty_state,
+                text="A wardrobe made yours",
+                style="EmptyTitle.TLabel",
+            ).grid(row=0, column=0, pady=(0, 8))
+            self.empty_message = ttk.Label(
+                empty_state,
+                text=message,
+                style="Body.TLabel",
+                wraplength=420,
+                justify="center",
+            )
+            self.empty_message.grid(row=1, column=0, pady=(0, 20))
+            ttk.Button(
+                empty_state,
+                text="Add your first item",
+                style="Secondary.TButton",
+                command=self.on_add_clothing,
+            ).grid(row=2, column=0)
+            self._columns = 0
+            return
+
+        columns = self._column_count(len(items))
+        self._columns = columns
+        for column in range(columns):
+            content.grid_columnconfigure(column, weight=1, uniform="wardrobe")
+        for index, item in enumerate(items):
+            self._create_item_card(item, index // columns, index % columns)
+
+    def _create_item_card(self, item: ClothingItem, row: int, column: int) -> None:
+        card = ttk.Frame(
+            self.gallery.content,
+            style="SoftPanel.TFrame",
+            padding=12,
         )
-        self.empty_message.configure(text=message)
+        card.grid(row=row, column=column, sticky="nsew", padx=8, pady=8)
+        card.grid_columnconfigure(0, weight=1)
+        image_box = ttk.Frame(card, style="SoftPanel.TFrame", width=170, height=170)
+        image_box.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        image_box.grid_propagate(False)
+
+        try:
+            thumbnail = create_thumbnail(item.image_path or "", (150, 150))
+            photo = ImageTk.PhotoImage(thumbnail, master=self.winfo_toplevel())
+            self._photo_images.append(photo)
+            image_label = ttk.Label(
+                image_box,
+                image=photo,
+                background=BEIGE,
+                anchor="center",
+            )
+        except ImageValidationError:
+            image_label = ttk.Label(
+                image_box,
+                text="Image unavailable",
+                style="Body.TLabel",
+                background=BEIGE,
+                anchor="center",
+                width=23,
+            )
+        image_label.pack(fill="both", expand=True)
+        ttk.Label(
+            card,
+            text=item.name,
+            style="SectionTitle.TLabel",
+            wraplength=210,
+        ).grid(row=1, column=0, sticky="w")
+        ttk.Label(card, text=item.category, style="Small.TLabel").grid(
+            row=2, column=0, sticky="w", pady=(3, 10)
+        )
+        ttk.Button(
+            card,
+            text="Delete",
+            style="Secondary.TButton",
+            command=lambda item_id=item.id: self._delete_item(item_id),
+        ).grid(row=3, column=0, sticky="e")
+
+    def _delete_item(self, item_id: str) -> None:
+        if not messagebox.askyesno(
+            "Delete clothing item",
+            "Are you sure you want to delete this clothing item?",
+            parent=self.winfo_toplevel(),
+        ):
+            return
+        if self.manager.delete_item(item_id):
+            self.refresh()
 
 
 class AddClothingScreen(ttk.Frame):
-    def __init__(self, parent: ttk.Frame, parent_window: tk.Tk) -> None:
+    def __init__(
+        self,
+        parent: ttk.Frame,
+        parent_window: tk.Tk,
+        manager: ClothingManager,
+        on_item_added: Callable[[], None],
+    ) -> None:
         super().__init__(parent, style="Content.TFrame")
         self.parent_window = parent_window
+        self.manager = manager
+        self.on_item_added = on_item_added
         self.selected_image: str | None = None
         self.preview_image: ImageTk.PhotoImage | None = None
         self.grid_columnconfigure(0, weight=1)
@@ -163,7 +272,7 @@ class AddClothingScreen(ttk.Frame):
         add_page_heading(
             self,
             "Add Clothing",
-            "Add a piece to your digital wardrobe. Saving is not connected yet.",
+            "Add a piece to your digital wardrobe.",
         )
 
         panel = ttk.Frame(self, style="Panel.TFrame", padding=24)
@@ -243,23 +352,24 @@ class AddClothingScreen(ttk.Frame):
         footer.grid_columnconfigure(0, weight=1)
         ttk.Label(
             footer,
-            text="This button is a placeholder; no clothing data will be saved.",
+            text="Your item will be added to this session's wardrobe.",
             style="Small.TLabel",
             wraplength=500,
         ).grid(row=0, column=0, sticky="w", padx=(0, 12))
-        ttk.Button(
+        self.add_button = ttk.Button(
             footer,
             text="Add Clothing",
             style="Primary.TButton",
-            command=self._show_placeholder,
-        ).grid(row=0, column=1, sticky="e")
+            command=self._add_clothing,
+        )
+        self.add_button.grid(row=0, column=1, sticky="e")
 
     def _choose_image(self) -> None:
         path = filedialog.askopenfilename(
             parent=self.parent_window,
             title="Choose a clothing image",
             filetypes=(
-                ("Image files", "*.png *.jpg *.jpeg *.gif *.bmp *.webp"),
+                ("Image files", "*.png *.jpg *.jpeg *.webp"),
                 ("All files", "*.*"),
             ),
         )
@@ -267,22 +377,13 @@ class AddClothingScreen(ttk.Frame):
             return
 
         try:
-            with Image.open(path) as image:
-                image.thumbnail((138, 138), Image.Resampling.LANCZOS)
-                preview = ImageTk.PhotoImage(
-                    image.convert("RGBA"),
-                    master=self.parent_window,
-                )
-        except (
-            UnidentifiedImageError,
-            Image.DecompressionBombError,
-            OSError,
-            ValueError,
-            tk.TclError,
-        ):
+            image = create_thumbnail(path, (138, 138))
+            preview = ImageTk.PhotoImage(image, master=self.parent_window)
+        except (ImageValidationError, tk.TclError):
+            self._clear_selected_image()
             messagebox.showwarning(
                 "Unable to preview image",
-                "This file is not a supported or readable image. Please choose another file.",
+                "This file is not a supported or readable PNG, JPEG, or WEBP image. Please choose another file.",
                 parent=self.parent_window,
             )
             return
@@ -292,12 +393,36 @@ class AddClothingScreen(ttk.Frame):
         self.preview_label.configure(image=self.preview_image, text="")
         self.filename_label.configure(text=Path(path).name)
 
-    def _show_placeholder(self) -> None:
+    def _clear_selected_image(self) -> None:
+        self.selected_image = None
+        self.preview_image = None
+        self.preview_label.configure(image="", text="No image\nselected")
+        self.filename_label.configure(text="No file selected")
+
+    def _add_clothing(self) -> None:
+        try:
+            item = self.manager.add_item(
+                self.name_var.get(),
+                self.category_var.get(),
+                self.selected_image,
+            )
+        except (ImageValidationError, ValueError) as error:
+            messagebox.showerror(
+                "Unable to add clothing",
+                str(error),
+                parent=self.parent_window,
+            )
+            return
+
+        self.on_item_added()
         messagebox.showinfo(
-            "Not connected yet",
-            "Clothing can be previewed here, but adding it to your wardrobe is not implemented yet.",
+            "Clothing added",
+            f"{item.name} was added to your wardrobe.",
             parent=self.parent_window,
         )
+        self.name_var.set("")
+        self.category_var.set("")
+        self._clear_selected_image()
 
 
 class OutfitBuilderScreen(ttk.Frame):

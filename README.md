@@ -2,17 +2,22 @@
 
 StyleMatch is a small Python desktop application for a virtual wardrobe and outfit planner. Its interface uses Tkinter and ttk, with Pillow used to preview selected clothing images. The UI is separated from the clothing model, outfit builder, and JSON storage modules.
 
-Goals for this step
-- Provide a resizable Tkinter application with wardrobe, clothing-entry, outfit-builder, and saved-outfit screens
-- Keep UI actions clearly marked as placeholders until backend integration
+Current functionality
+- Provide a resizable Tkinter application with wardrobe, clothing-entry, outfit-builder, and saved-outfit screens.
+- Add clothing items with a name, category, and local PNG, JPEG, or WEBP image.
+- Preview images and display proportion-preserving thumbnails in a scrollable, filterable wardrobe gallery.
+- Delete wardrobe items after confirmation; original image files are not changed.
+- Keep wardrobe items in memory for the current session only. JSON persistence and outfit creation/saving are not implemented yet.
 
 Architecture (modules)
 1. User Interface (stylematch.ui)
    - `main_window.py` provides the shared window and navigation.
    - `screens.py` defines the four screen layouts and reusable gallery area.
-   - Responsible for GUI only; it does not perform clothing CRUD or outfit persistence.
-2. Clothing & Image Management (stylematch.models)
-   - Data models for clothing items and image helpers.
+   - Clothing actions call the shared clothing management service.
+2. Clothing & Image Management
+   - `models/clothing.py` defines clothing item data.
+   - `services/clothing_manager.py` validates and manages in-memory clothing items.
+   - `images.py` validates supported image files and creates thumbnails.
 3. Outfit Builder (stylematch.outfits)
    - Business logic for building outfit combinations.
 4. Local JSON Data Storage (stylematch.storage)
@@ -60,6 +65,7 @@ Run tests (after installing pytest):
    pytest -q
 
 Notes
-- Clothing and outfit actions are placeholders; no data is currently saved or loaded.
+- Clothing items are held in memory and are cleared when the application closes.
+- Outfit creation and saving remain placeholders.
 - Business logic remains separate from UI code.
 - No external or paid APIs are used.

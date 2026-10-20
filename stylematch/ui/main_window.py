@@ -3,6 +3,7 @@
 import tkinter as tk
 from tkinter import ttk
 
+from stylematch.services.clothing_manager import ClothingManager
 from stylematch.ui.screens import (
     AddClothingScreen,
     OutfitBuilderScreen,
@@ -21,6 +22,7 @@ class StyleMatchWindow:
 
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
+        self.clothing_manager = ClothingManager()
         self.current_screen_name: str | None = None
         self.root.title(WINDOW_TITLE)
         self.root.geometry(WINDOW_SIZE)
@@ -210,14 +212,18 @@ class StyleMatchWindow:
         self.content.grid_rowconfigure(0, weight=1)
 
     def _build_screens(self) -> None:
+        wardrobe = WardrobeScreen(
+            self.content,
+            manager=self.clothing_manager,
+            on_add_clothing=lambda: self.show_screen("Add Clothing"),
+        )
         self.screens: dict[str, ttk.Frame] = {
-            "My Wardrobe": WardrobeScreen(
-                self.content,
-                on_add_clothing=lambda: self.show_screen("Add Clothing"),
-            ),
+            "My Wardrobe": wardrobe,
             "Add Clothing": AddClothingScreen(
                 self.content,
                 parent_window=self.root,
+                manager=self.clothing_manager,
+                on_item_added=wardrobe.refresh,
             ),
             "Outfit Builder": OutfitBuilderScreen(self.content),
             "Saved Outfits": SavedOutfitsScreen(self.content),
