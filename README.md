@@ -1,15 +1,16 @@
 # StyleMatch — Virtual Wardrobe & Outfit Planner (Starter)
 
-This repository contains the initial skeleton for the StyleMatch desktop application, implemented in Python using Tkinter for UI, Pillow for image handling, and JSON for local persistence. This first step creates a simple modular architecture and a minimal runnable Tkinter window.
+StyleMatch is a small Python desktop application for a virtual wardrobe and outfit planner. Its interface uses Tkinter and ttk, with Pillow used to preview selected clothing images. The UI is separated from the clothing model, outfit builder, and JSON storage modules.
 
 Goals for this step
-- Propose a modular architecture
-- Create initial folder structure and placeholder modules
-- Provide a minimal runnable Tkinter application named `StyleMatch`
+- Provide a resizable Tkinter application with wardrobe, clothing-entry, outfit-builder, and saved-outfit screens
+- Keep UI actions clearly marked as placeholders until backend integration
 
 Architecture (modules)
 1. User Interface (stylematch.ui)
-   - Responsible for GUI only. Keeps business logic out of this layer.
+   - `main_window.py` provides the shared window and navigation.
+   - `screens.py` defines the four screen layouts and reusable gallery area.
+   - Responsible for GUI only; it does not perform clothing CRUD or outfit persistence.
 2. Clothing & Image Management (stylematch.models)
    - Data models for clothing items and image helpers.
 3. Outfit Builder (stylematch.outfits)
@@ -23,7 +24,8 @@ Folder structure created
   - app.py                  (application entrypoint)
   - ui/
     - __init__.py
-    - main_window.py        (Tkinter window, uses business modules)
+    - main_window.py        (Tkinter window and screen navigation)
+    - screens.py            (screen layouts and UI components)
   - models/
     - __init__.py
     - clothing.py          (ClothingItem dataclass placeholder)
@@ -58,6 +60,6 @@ Run tests (after installing pytest):
    pytest -q
 
 Notes
-- Business logic is intentionally minimal and separated from UI code.
+- Clothing and outfit actions are placeholders; no data is currently saved or loaded.
+- Business logic remains separate from UI code.
 - No external or paid APIs are used.
-

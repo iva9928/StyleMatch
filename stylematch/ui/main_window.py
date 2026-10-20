@@ -1,37 +1,243 @@
-"""Minimal Tkinter main window for StyleMatch.
+"""Main Tkinter window and navigation for StyleMatch."""
 
-This file contains only UI wiring and imports the business-layer modules but does not implement logic yet.
-"""
 import tkinter as tk
 from tkinter import ttk
 
+from stylematch.ui.screens import (
+    AddClothingScreen,
+    OutfitBuilderScreen,
+    SavedOutfitsScreen,
+    WardrobeScreen,
+)
+from stylematch.ui.theme import BEIGE, BROWN, CREAM, MUTED_BROWN, WHITE
+
 WINDOW_TITLE = "StyleMatch"
-WINDOW_MIN_SIZE = (600, 400)
+WINDOW_SIZE = "1100x750"
+WINDOW_MIN_SIZE = (850, 600)
+
+
+class StyleMatchWindow:
+    """Build the shared application shell and switch between its screens."""
+
+    def __init__(self, root: tk.Tk) -> None:
+        self.root = root
+        self.current_screen_name: str | None = None
+        self.root.title(WINDOW_TITLE)
+        self.root.geometry(WINDOW_SIZE)
+        self.root.minsize(*WINDOW_MIN_SIZE)
+        self._configure_styles()
+        self._build_layout()
+        self._build_screens()
+        self.show_screen("My Wardrobe")
+
+    def _configure_styles(self) -> None:
+        style = ttk.Style(self.root)
+        if "clam" in style.theme_names():
+            style.theme_use("clam")
+
+        style.configure(".", font=("Segoe UI", 10), foreground=BROWN)
+        style.configure("App.TFrame", background=CREAM)
+        style.configure("Header.TFrame", background=WHITE)
+        style.configure("Sidebar.TFrame", background=CREAM)
+        style.configure("Content.TFrame", background=CREAM)
+        style.configure("Panel.TFrame", background=WHITE)
+        style.configure("SoftPanel.TFrame", background=BEIGE)
+        style.configure(
+            "AppTitle.TLabel",
+            background=WHITE,
+            foreground=BROWN,
+            font=("Segoe UI", 22, "bold"),
+        )
+        style.configure(
+            "Subtitle.TLabel",
+            background=WHITE,
+            foreground=MUTED_BROWN,
+            font=("Segoe UI", 10),
+        )
+        style.configure(
+            "PageTitle.TLabel",
+            background=CREAM,
+            foreground=BROWN,
+            font=("Segoe UI", 19, "bold"),
+        )
+        style.configure(
+            "PageDescription.TLabel",
+            background=CREAM,
+            foreground=MUTED_BROWN,
+            font=("Segoe UI", 10),
+        )
+        style.configure(
+            "SectionTitle.TLabel",
+            background=WHITE,
+            foreground=BROWN,
+            font=("Segoe UI", 12, "bold"),
+        )
+        style.configure(
+            "EmptyTitle.TLabel",
+            background=WHITE,
+            foreground=BROWN,
+            font=("Segoe UI", 15, "bold"),
+        )
+        style.configure(
+            "Body.TLabel",
+            background=WHITE,
+            foreground=MUTED_BROWN,
+            font=("Segoe UI", 10),
+        )
+        style.configure(
+            "Small.TLabel",
+            background=WHITE,
+            foreground=MUTED_BROWN,
+            font=("Segoe UI", 9),
+        )
+        style.configure(
+            "Nav.TButton",
+            background=CREAM,
+            foreground=BROWN,
+            anchor="w",
+            padding=(14, 11),
+            font=("Segoe UI", 10),
+            borderwidth=0,
+        )
+        style.map(
+            "Nav.TButton",
+            background=[("active", BEIGE)],
+            foreground=[("active", BROWN)],
+        )
+        style.configure(
+            "NavActive.TButton",
+            background=BROWN,
+            foreground=WHITE,
+            anchor="w",
+            padding=(14, 11),
+            font=("Segoe UI", 10, "bold"),
+            borderwidth=0,
+        )
+        style.map(
+            "NavActive.TButton",
+            background=[("active", BROWN)],
+            foreground=[("active", WHITE)],
+        )
+        style.configure(
+            "Primary.TButton",
+            background=BROWN,
+            foreground=WHITE,
+            padding=(16, 9),
+            font=("Segoe UI", 10, "bold"),
+            borderwidth=0,
+        )
+        style.map(
+            "Primary.TButton",
+            background=[("active", MUTED_BROWN), ("disabled", BEIGE)],
+            foreground=[("disabled", MUTED_BROWN)],
+        )
+        style.configure(
+            "Secondary.TButton",
+            background=BEIGE,
+            foreground=BROWN,
+            padding=(14, 8),
+            font=("Segoe UI", 10),
+            borderwidth=0,
+        )
+        style.map("Secondary.TButton", background=[("active", "#DCCEBF")])
+        style.configure(
+            "TEntry",
+            fieldbackground=WHITE,
+            foreground=BROWN,
+            padding=8,
+        )
+        style.configure(
+            "TCombobox",
+            fieldbackground=WHITE,
+            foreground=BROWN,
+            padding=6,
+        )
+
+    def _build_layout(self) -> None:
+        self.root.configure(background=CREAM)
+        self.root.grid_columnconfigure(0, weight=1)
+        self.root.grid_rowconfigure(1, weight=1)
+
+        header = ttk.Frame(self.root, style="Header.TFrame", padding=(28, 18))
+        header.grid(row=0, column=0, sticky="ew")
+        header.grid_columnconfigure(0, weight=1)
+
+        title_group = ttk.Frame(header, style="Header.TFrame")
+        title_group.grid(row=0, column=0, sticky="w")
+        ttk.Label(title_group, text=WINDOW_TITLE, style="AppTitle.TLabel").pack(
+            anchor="w"
+        )
+        ttk.Label(
+            title_group,
+            text="Your Personal Digital Wardrobe",
+            style="Subtitle.TLabel",
+        ).pack(anchor="w", pady=(1, 0))
+
+        body = ttk.Frame(self.root, style="App.TFrame")
+        body.grid(row=1, column=0, sticky="nsew")
+        body.grid_columnconfigure(0, weight=0, minsize=205)
+        body.grid_columnconfigure(1, weight=1)
+        body.grid_rowconfigure(0, weight=1)
+
+        self.sidebar = ttk.Frame(body, style="Sidebar.TFrame", padding=(16, 22))
+        self.sidebar.grid(row=0, column=0, sticky="nsew")
+        self.sidebar.grid_columnconfigure(0, weight=1)
+        ttk.Label(
+            self.sidebar,
+            text="YOUR SPACE",
+            style="Subtitle.TLabel",
+            background=CREAM,
+            font=("Segoe UI", 9, "bold"),
+        ).grid(row=0, column=0, sticky="w", padx=8, pady=(2, 13))
+
+        self.nav_buttons: dict[str, ttk.Button] = {}
+        for row, screen_name in enumerate(
+            ("My Wardrobe", "Add Clothing", "Outfit Builder", "Saved Outfits"),
+            start=1,
+        ):
+            button = ttk.Button(
+                self.sidebar,
+                text=screen_name,
+                style="Nav.TButton",
+                command=lambda name=screen_name: self.show_screen(name),
+            )
+            button.grid(row=row, column=0, sticky="ew", pady=3)
+            self.nav_buttons[screen_name] = button
+
+        self.content = ttk.Frame(body, style="Content.TFrame", padding=(28, 26))
+        self.content.grid(row=0, column=1, sticky="nsew")
+        self.content.grid_columnconfigure(0, weight=1)
+        self.content.grid_rowconfigure(0, weight=1)
+
+    def _build_screens(self) -> None:
+        self.screens: dict[str, ttk.Frame] = {
+            "My Wardrobe": WardrobeScreen(
+                self.content,
+                on_add_clothing=lambda: self.show_screen("Add Clothing"),
+            ),
+            "Add Clothing": AddClothingScreen(
+                self.content,
+                parent_window=self.root,
+            ),
+            "Outfit Builder": OutfitBuilderScreen(self.content),
+            "Saved Outfits": SavedOutfitsScreen(self.content),
+        }
+        for screen in self.screens.values():
+            screen.grid(row=0, column=0, sticky="nsew")
+
+    def show_screen(self, screen_name: str) -> None:
+        """Raise a screen in the shared content area and highlight its navigation."""
+        self.screens[screen_name].tkraise()
+        self.current_screen_name = screen_name
+        for name, button in self.nav_buttons.items():
+            button.configure(
+                style="NavActive.TButton" if name == screen_name else "Nav.TButton"
+            )
 
 
 def main() -> None:
     root = tk.Tk()
-    root.title(WINDOW_TITLE)
-    root.minsize(*WINDOW_MIN_SIZE)
-
-    # Simple header frame
-    header = ttk.Frame(root, padding=10)
-    header.pack(fill="x")
-
-    title_label = ttk.Label(header, text=WINDOW_TITLE, font=("Segoe UI", 16, "bold"))
-    title_label.pack(side="left")
-
-    # Content placeholder
-    content = ttk.Frame(root, padding=10)
-    content.pack(fill="both", expand=True)
-
-    placeholder = ttk.Label(content, text="Welcome to StyleMatch (UI placeholder)")
-    placeholder.pack(pady=20)
-
-    # Status bar
-    status = ttk.Label(root, text="Ready", relief="sunken", anchor="w")
-    status.pack(fill="x", side="bottom")
-
+    StyleMatchWindow(root)
     root.mainloop()
 
 
