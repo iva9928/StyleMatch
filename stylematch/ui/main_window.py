@@ -1,7 +1,7 @@
 """Main Tkinter window and navigation for StyleMatch."""
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import messagebox, ttk
 
 from stylematch.services.clothing_manager import ClothingManager
 from stylematch.ui.screens import (
@@ -20,9 +20,15 @@ WINDOW_MIN_SIZE = (850, 600)
 class StyleMatchWindow:
     """Build the shared application shell and switch between its screens."""
 
-    def __init__(self, root: tk.Tk) -> None:
+    def __init__(
+        self,
+        root: tk.Tk,
+        manager: ClothingManager | None = None,
+    ) -> None:
         self.root = root
-        self.clothing_manager = ClothingManager()
+        self.clothing_manager = (
+            manager if manager is not None else ClothingManager()
+        )
         self.current_screen_name: str | None = None
         self.root.title(WINDOW_TITLE)
         self.root.geometry(WINDOW_SIZE)
@@ -241,9 +247,20 @@ class StyleMatchWindow:
             )
 
 
-def main() -> None:
+def main(
+    manager: ClothingManager | None = None,
+    startup_warning: str | None = None,
+) -> None:
     root = tk.Tk()
-    StyleMatchWindow(root)
+    StyleMatchWindow(root, manager=manager)
+    if startup_warning:
+        root.after_idle(
+            lambda: messagebox.showwarning(
+                "Wardrobe data warning",
+                startup_warning,
+                parent=root,
+            )
+        )
     root.mainloop()
 
 

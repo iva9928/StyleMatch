@@ -6,8 +6,19 @@ Current functionality
 - Provide a resizable Tkinter application with wardrobe, clothing-entry, outfit-builder, and saved-outfit screens.
 - Add clothing items with a name, category, and local PNG, JPEG, or WEBP image.
 - Preview images and display proportion-preserving thumbnails in a scrollable, filterable wardrobe gallery.
-- Delete wardrobe items after confirmation; original image files are not changed.
-- Keep wardrobe items in memory for the current session only. JSON persistence and outfit creation/saving are not implemented yet.
+- Persist clothing metadata locally as versioned JSON and restore the wardrobe when the application restarts.
+- Delete wardrobe items after confirmation; the application removes only its own managed image copy, never the original image.
+- Keep outfit creation and saving as placeholders.
+
+Local data storage
+- StyleMatch stores `wardrobe.json` and imported image copies in a per-user application data directory, not in the source package:
+  - Windows: `%LOCALAPPDATA%\StyleMatch` (falls back to `%USERPROFILE%\AppData\Local\StyleMatch` when `LOCALAPPDATA` is unavailable).
+  - macOS: `~/Library/Application Support/StyleMatch`.
+  - Linux: `$XDG_DATA_HOME/StyleMatch`, or `~/.local/share/StyleMatch` when `XDG_DATA_HOME` is unset or not an absolute path.
+- The JSON file stores clothing IDs, names, categories, and portable relative references to images in its `images/` subdirectory.
+- Selected images are validated and copied into that managed `images/` directory. The original files are not modified or deleted.
+- If a managed image is missing or unreadable, its clothing record remains in the wardrobe and the gallery displays “Image unavailable.”
+- If wardrobe JSON is malformed or invalid, StyleMatch preserves it under a unique `.bak` filename and displays a warning before starting with an empty wardrobe. If it cannot preserve the file safely, persistence writes are disabled for that session.
 
 Architecture (modules)
 1. User Interface (stylematch.ui)
@@ -21,7 +32,7 @@ Architecture (modules)
 3. Outfit Builder (stylematch.outfits)
    - Business logic for building outfit combinations.
 4. Local JSON Data Storage (stylematch.storage)
-   - Read/write JSON persistence for wardrobe and outfits.
+   - Atomically read/write versioned wardrobe JSON and manage imported image copies.
 
 Folder structure created
 - stylematch/               (package)
@@ -39,7 +50,9 @@ Folder structure created
     - builder.py           (OutfitBuilder placeholder)
   - storage/
     - __init__.py
-    - json_store.py        (JSONStore placeholder)
+    - json_store.py        (atomic JSON file storage)
+    - data_paths.py        (cross-platform user data directory)
+    - wardrobe_persistence.py (wardrobe JSON and managed images)
 - tests/
   - test_placeholder.py    (basic pytest placeholder)
 - pyproject.toml
@@ -65,7 +78,7 @@ Run tests (after installing pytest):
    pytest -q
 
 Notes
-- Clothing items are held in memory and are cleared when the application closes.
+- Normal application launches persist clothing items and restore them on restart.
 - Outfit creation and saving remain placeholders.
 - Business logic remains separate from UI code.
 - No external or paid APIs are used.

@@ -5,6 +5,8 @@ This module defines simple data structures and helpers for clothing items. Busin
 from dataclasses import dataclass
 from typing import Optional
 
+CATEGORIES = ("Tops", "Bottoms", "Dresses", "Shoes", "Outerwear")
+
 
 @dataclass
 class ClothingItem:

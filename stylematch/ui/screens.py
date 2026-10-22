@@ -10,6 +10,8 @@ from PIL import Image, ImageTk
 from stylematch.images import ImageValidationError, create_thumbnail
 from stylematch.models.clothing import ClothingItem
 from stylematch.services.clothing_manager import CATEGORIES, ClothingManager
+from stylematch.storage.json_store import StorageError
+from stylematch.storage.wardrobe_persistence import PostCommitStorageError
 from stylematch.ui.theme import BEIGE, BROWN, CREAM, MUTED_BROWN, WHITE
 
 
@@ -248,7 +250,24 @@ class WardrobeScreen(ttk.Frame):
             parent=self.winfo_toplevel(),
         ):
             return
-        if self.manager.delete_item(item_id):
+        try:
+            deleted = self.manager.delete_item(item_id)
+        except PostCommitStorageError as error:
+            self.refresh()
+            messagebox.showwarning(
+                "Clothing deleted",
+                str(error),
+                parent=self.winfo_toplevel(),
+            )
+            return
+        except StorageError as error:
+            messagebox.showerror(
+                "Unable to delete clothing",
+                str(error),
+                parent=self.winfo_toplevel(),
+            )
+            return
+        if deleted:
             self.refresh()
 
 
@@ -352,7 +371,7 @@ class AddClothingScreen(ttk.Frame):
         footer.grid_columnconfigure(0, weight=1)
         ttk.Label(
             footer,
-            text="Your item will be added to this session's wardrobe.",
+            text="Your clothing and imported image are stored on this device.",
             style="Small.TLabel",
             wraplength=500,
         ).grid(row=0, column=0, sticky="w", padx=(0, 12))
@@ -406,7 +425,7 @@ class AddClothingScreen(ttk.Frame):
                 self.category_var.get(),
                 self.selected_image,
             )
-        except (ImageValidationError, ValueError) as error:
+        except (ImageValidationError, StorageError, ValueError) as error:
             messagebox.showerror(
                 "Unable to add clothing",
                 str(error),

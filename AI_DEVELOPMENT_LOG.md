@@ -1188,8 +1188,627 @@ Remaining limitations:
 - Original image files are referenced by path.
 - Outfit creation and saving are not implemented yet.
 
-Next step:
-Integrate the remaining modules, including persistent
-storage and outfit management.
+
+---
+
+# Day 4 – Local Data Storage (JSON Persistence)
+
+**Date:** October 22, 2026
+**Module:** Module 4 – Local Data Storage
+**Primary AI Tool:** GitHub Copilot Free
+**Supporting Tool:** ChatGPT
+**Technologies:** Python, JSON, Pillow, pytest
+
+## 1. Development Objective
+
+The goal of Day 4 was to implement permanent local
+storage for the StyleMatch digital wardrobe.
+
+Previously, clothing items existed only in memory and
+disappeared when the application closed.
+
+The new module needed to:
+- Save clothing metadata in JSON.
+- Restore clothing items after restarting the app.
+- Store imported images in an application-managed directory.
+- Preserve original user images.
+- Handle corrupted data and failed writes safely.
+- Support Windows, macOS, and Linux.
+- Preserve the existing UI and clothing-management logic.
+
+## 2. Prompt 1 – Storage Architecture Planning
+
+**AI Tool:** GitHub Copilot Free
+**Purpose:** Analyze existing storage and plan persistence.
+
+### Prompt
+
+We are continuing StyleMatch – Virtual Wardrobe & Outfit Planner, my university AI-Assisted Development exam project.
+
+Days 1, 2, and 3 have been completed and committed to Git.
+
+CURRENT PROJECT STATUS:
+- Python 3.12 desktop application using Tkinter, ttk, and Pillow.
+- Four functioning UI screens.
+- Functional clothing addition, category filtering, image previews, and confirmed deletion.
+- A shared in-memory ClothingManager.
+- 37 automated pytest tests passed and independently verified.
+- Modular architecture with a separate storage package.
+- Clothing data currently disappears when the application closes.
+
+TODAY'S MODULE:
+Module 4 – Local Data Storage (JSON Persistence).
+
+Before proposing changes, inspect the actual existing implementation in:
+- stylematch/storage/json_store.py
+- stylematch/storage/__init__.py
+- stylematch/services/clothing_manager.py
+- stylematch/models/clothing.py
+- stylematch/images.py
+- stylematch/ui/main_window.py
+- stylematch/ui/screens.py
+- stylematch/app.py
+- tests/test_clothing_manager.py
+- tests/test_ui.py
+- pyproject.toml
+- .gitignore
+
+GOAL:
+Make the wardrobe persist across application restarts using local JSON storage, while preserving all existing functionality.
+
+REQUIRED FUNCTIONALITY:
+
+1. JSON DATA PERSISTENCE
+- Save clothing item metadata to a local JSON file.
+- Load existing clothing items when the application starts.
+- Automatically save changes after adding or deleting items.
+- Avoid duplicate items after restarting.
+- Preserve each item's ID, name, category, and image reference.
+
+2. IMAGE STORAGE
+- Create an application-managed directory for imported clothing images.
+- Copy selected images into that directory after validating them.
+- Never modify or delete the original user-selected image.
+- Generate collision-resistant filenames.
+- Store image references in JSON in a portable form.
+- Preserve the original image aspect ratio when displaying thumbnails.
+- Define a safe approach to deleting managed image copies when an item is deleted.
+
+3. RELIABILITY
+- Handle the first launch when the JSON file does not exist.
+- Handle empty wardrobes correctly.
+- Handle corrupted or invalid JSON without crashing.
+- Avoid silently overwriting corrupted data.
+- Prefer atomic JSON writes to reduce the risk of partial files.
+- Avoid losing existing records when a save operation fails.
+- Define how to recover from missing or unreadable managed image files.
+
+4. FILE LOCATIONS AND PORTABILITY
+- Propose an appropriate per-user application data directory.
+- Support Windows, macOS, and Linux.
+- Do not rely on a hard-coded Windows path.
+- Do not store mutable application data inside the Python source package.
+- Avoid unnecessary dependencies.
+- Ensure runtime data and imported images are not accidentally committed to Git.
+
+5. ARCHITECTURE
+- Reuse the existing json_store.py where practical.
+- Keep storage logic separate from the UI.
+- Preserve the existing ClothingItem model and ClothingManager API where practical.
+- Explain whether a small storage or persistence coordinator is needed.
+- Minimize changes to working UI code.
+- Preserve all four existing screens.
+- Do not implement outfit generation or saved-outfit functionality in this step.
+- Keep the scope appropriate for a small university exam project.
+
+6. TESTING
+Propose automated pytest tests for:
+- Saving and loading an empty wardrobe.
+- Saving and loading multiple clothing items.
+- Preserving IDs and categories.
+- Restarting the application and restoring data.
+- Adding and deleting items with automatic persistence.
+- Image import and reference handling.
+- Duplicate or colliding image filenames.
+- Missing and corrupted JSON files.
+- Failed writes and safe error handling.
+- Missing managed image files.
+- Compatibility with existing tests.
+
+Use temporary directories in tests so real user data is never modified.
+
+FOR NOW, PROVIDE ONLY AN IMPLEMENTATION PLAN.
+
+Explain:
+1. What the current storage code already supports.
+2. The proposed JSON structure.
+3. The proposed cross-platform data directory.
+4. Which files need to be created or modified.
+5. How and when data will be saved and loaded.
+6. How images will be copied, referenced, and managed.
+7. How to handle failed saves and corrupted JSON.
+8. How to preserve current behavior and compatibility.
+9. The automated and manual testing strategy.
+10. Potential risks and the simplest safe solutions.
+
+IMPORTANT:
+Do not create or modify files yet.
+Do not generate implementation code yet.
+Do not modify AI_DEVELOPMENT_LOG.md.
+Wait for my approval before implementation.
+
+### AI Response and Result
+
+GitHub Copilot inspected the existing storage, model,
+manager, image utilities, and application startup.
+
+It proposed:
+- Versioned JSON storage.
+- A cross-platform user-data directory.
+- A wardrobe persistence coordinator.
+- Managed image copies and relative image paths.
+- Atomic JSON writes.
+- Corrupted-file backup and recovery handling.
+- Optional persistence injection into ClothingManager.
+
+No files were changed during the planning phase.
+
+## 3. Prompt 2 – JSON Persistence Implementation
+
+**AI Tool:** GitHub Copilot Free
+**Purpose:** Implement permanent wardrobe storage.
+
+### Prompt
+
+I approve the implementation plan for Module 4 – Local Data Storage (JSON Persistence) in StyleMatch.
+
+Now implement the planned functionality in the existing Python project.
+
+CONTEXT:
+- Days 1, 2, and 3 have been completed.
+- The project currently has 37 passing pytest tests.
+- Clothing addition, category filtering, image previews, and confirmed deletion are working.
+- Clothing data is currently stored only in memory.
+- The application must remain a small, maintainable university project.
+
+FIRST:
+Inspect the current files and preserve the existing architecture and public APIs wherever practical.
+
+1. CROSS-PLATFORM APPLICATION DATA
+
+Create stylematch/storage/data_paths.py.
+
+Use a per-user application data directory:
+
+Windows:
+%LOCALAPPDATA%/StyleMatch
+with a safe user-directory fallback if LOCALAPPDATA is unavailable.
+
+macOS:
+~/Library/Application Support/StyleMatch
+
+Linux:
+$XDG_DATA_HOME/StyleMatch
+or ~/.local/share/StyleMatch
+
+Do not hard-code a Windows username or absolute machine-specific path.
+
+The application data directory must contain:
+- wardrobe.json
+- images/
+
+Do not write runtime data inside the source package.
+
+2. JSON STORAGE
+
+Improve the existing stylematch/storage/json_store.py.
+
+Requirements:
+- Support reading and writing JSON.
+- Use UTF-8 encoding.
+- Handle missing files.
+- Use atomic writes with a temporary file in the same directory followed by os.replace.
+- Clean up temporary files after failed writes.
+- Report storage errors clearly.
+- Do not silently overwrite corrupted JSON data.
+
+Use a small versioned JSON structure, for example:
+
+{
+  "version": 1,
+  "clothing": [
+    {
+      "id": "unique-id",
+      "name": "White Shirt",
+      "category": "Tops",
+      "image_path": "images/unique-image.jpg"
+    }
+  ]
+}
+
+Preserve clothing IDs, names, categories, and image references.
+
+3. PERSISTENCE COORDINATOR
+
+Create stylematch/storage/wardrobe_persistence.py.
+
+Responsibilities:
+- Load clothing data from JSON.
+- Validate the structure and schema version.
+- Reconstruct ClothingItem objects.
+- Save the complete clothing collection.
+- Import and manage clothing images.
+- Resolve relative image paths securely.
+- Prevent unsafe path traversal outside managed storage.
+
+Keep storage logic separate from Tkinter widgets.
+
+4. IMAGE IMPORT AND STORAGE
+
+When adding a clothing item:
+- Validate the selected image using the existing Pillow utilities.
+- Support PNG, JPEG, and WEBP.
+- Copy the selected image into the managed images/ directory.
+- Never alter or delete the original image.
+- Use collision-resistant filenames.
+- Derive the managed image extension from the verified image format.
+- Store relative paths in wardrobe.json.
+- Use absolute resolved paths internally when needed by Pillow and the existing UI.
+
+When deleting:
+- Save the updated wardrobe data first.
+- Only after a successful save, attempt to delete the associated managed image copy.
+- Never delete an original source image.
+- Ensure cleanup cannot delete files outside the managed image directory.
+
+If a managed image disappears, preserve the clothing record and display the existing image-unavailable fallback.
+
+5. CLOTHING MANAGER INTEGRATION
+
+Modify stylematch/services/clothing_manager.py.
+
+Requirements:
+- Keep the existing ClothingManager() constructor working without persistence.
+- Allow optional persistence injection.
+- Load saved items during persistent manager initialization.
+- Automatically persist successful additions.
+- Automatically persist successful deletions.
+- Preserve existing public methods where possible.
+- Validate input before attempting persistent changes.
+- Do not update the in-memory collection if the JSON save fails.
+- If saving a new item fails, clean up its newly imported managed image when safe.
+- Do not create duplicate items when loading the same data again.
+
+Preserve all existing category filtering and validation behavior.
+
+6. APPLICATION STARTUP
+
+Update stylematch/app.py or the appropriate existing application startup integration.
+
+For normal application launches:
+- Construct the persistent ClothingManager.
+- Load saved wardrobe data.
+- Pass the manager to the existing main window.
+- Preserve a single Tkinter root window.
+- Preserve all four existing screens.
+
+Use the existing dependency-injection pattern where possible and avoid creating competing manager instances.
+
+7. CORRUPTED DATA AND ERROR HANDLING
+
+Handle:
+- Missing JSON file.
+- Empty wardrobes.
+- Malformed JSON.
+- Invalid schema versions.
+- Invalid records.
+- Permission errors.
+- Failed writes.
+- Missing managed images.
+
+IMPORTANT DATA-SAFETY RULE:
+
+If wardrobe.json is malformed or cannot be safely loaded:
+- Never silently overwrite the original file.
+- Preserve the original corrupted data, preferably under a unique backup name.
+- Display a clear warning.
+- If the original cannot be safely preserved, disable persistence writes for that session rather than risking data loss.
+- Avoid presenting failed persistence as a successful save.
+
+8. USER INTERFACE
+
+Update stylematch/ui/screens.py only where needed.
+
+- Remove outdated session-only descriptions.
+- Display success messages only after successful persistence.
+- Show clear user-friendly errors if storage operations fail.
+- Preserve the existing fashion-inspired design.
+- Preserve the current wardrobe gallery and category filters.
+- Preserve deletion confirmation.
+- Do not redesign the four screens.
+
+9. TEST COMPATIBILITY
+
+Preserve the 37 existing tests.
+
+Do not remove or weaken tests to hide failures.
+
+Keep no-argument ClothingManager usage in-memory for compatibility.
+
+Use dependency injection and temporary directories for storage tests.
+
+You may add focused tests during implementation, but the comprehensive testing phase will follow in Prompt 3.
+
+10. DOCUMENTATION
+
+Update README.md to describe:
+- Persistent clothing storage.
+- Cross-platform application data locations.
+- Managed image copies.
+- The fact that originals remain unchanged.
+- The behavior when stored images are unavailable.
+
+Do not modify AI_DEVELOPMENT_LOG.md.
+
+11. SCOPE RESTRICTIONS
+
+Do not implement:
+- Outfit generation.
+- Saving outfits.
+- Databases.
+- Cloud storage.
+- Authentication.
+- Paid APIs.
+- Additional unnecessary frameworks.
+
+Keep the solution appropriate for a small university exam project.
+
+AFTER IMPLEMENTATION:
+
+1. List all created and modified files.
+2. Explain the chosen JSON format.
+3. Explain where data and images are stored.
+4. Explain how existing tests remain compatible.
+5. Provide the exact application launch command.
+6. Provide manual testing steps for restarting and restoring the wardrobe.
+7. Run available tests and report actual results.
+8. Identify limitations or remaining risks.
+
+Implement Module 4 now.
+
+### Implementation Results
+
+Created:
+- stylematch/storage/data_paths.py
+- stylematch/storage/wardrobe_persistence.py
+- tests/test_storage.py
+
+Modified:
+- stylematch/storage/json_store.py
+- stylematch/services/clothing_manager.py
+- stylematch/models/clothing.py
+- stylematch/app.py
+- stylematch/ui/main_window.py
+- stylematch/ui/screens.py
+- README.md
+
+GitHub Copilot implemented versioned JSON persistence
+and managed image storage.
+
+The application now saves and loads clothing items across
+sessions. Imported images are copied to the application's
+data directory while original images remain unchanged.
+
+JSON writes use temporary files followed by atomic
+replacement. Invalid stored data is preserved for manual
+recovery instead of being silently overwritten.
+
+**Initial AI-reported test result:** 51 passed.
+
+## 4. Prompt 3 – Storage Testing & Refinement
+
+**AI Tool:** GitHub Copilot Free
+**Purpose:** Review persistence reliability and add tests.
+
+### Prompt
+
+We have implemented Module 4 – Local Data Storage for StyleMatch.
+
+The application now uses versioned JSON persistence and application-managed image storage.
+
+The complete pytest suite has been independently verified:
+51 tests passed in 5.06 seconds.
+
+Now perform the final testing and refinement phase for Module 4.
+
+TASKS:
+
+1. Review the current persistence implementation:
+- stylematch/storage/json_store.py
+- stylematch/storage/data_paths.py
+- stylematch/storage/wardrobe_persistence.py
+- stylematch/services/clothing_manager.py
+- stylematch/models/clothing.py
+- stylematch/app.py
+- stylematch/ui/main_window.py
+- stylematch/ui/screens.py
+
+2. Review the existing test suite, including tests/test_storage.py.
+
+3. Verify and extend automated tests where necessary for:
+- Loading an empty wardrobe.
+- Saving and restoring multiple clothing items.
+- Preserving item IDs, names, and categories.
+- Preventing duplicate items after restart.
+- Automatically saving added and deleted items.
+- Importing PNG, JPEG, and WEBP images.
+- Preserving original source image files.
+- Storing portable relative image paths.
+- Preventing unsafe path traversal.
+- Handling missing managed images.
+- Handling missing, malformed, or invalid JSON.
+- Preserving corrupted data before recovery.
+- Handling failed JSON writes without losing existing data.
+- Cleaning up temporary files and newly imported images after failed operations.
+- Maintaining compatibility with in-memory ClothingManager tests.
+
+4. Inspect the application startup and verify that:
+- Normal launches use the persistent manager.
+- Saved wardrobe records are loaded before the UI displays them.
+- The application does not create multiple competing ClothingManager instances.
+- Existing UI screens and navigation remain functional.
+
+5. Review error handling:
+- Never report successful saving if persistence fails.
+- Never overwrite corrupted wardrobe data silently.
+- Never delete an original user-selected image.
+- Never delete files outside the managed image directory.
+- Preserve clothing records when managed images become unavailable.
+
+6. Make only necessary bug fixes or small improvements.
+Avoid unnecessary architectural refactoring.
+
+7. Add focused regression tests for any actual defects discovered.
+
+8. Use pytest temporary directories for storage tests.
+Never modify or delete actual user data while testing.
+
+9. Preserve the existing visual design and all four screens.
+
+10. Do not implement:
+- Outfit generation.
+- Saved outfits.
+- Authentication.
+- Cloud storage.
+- A database.
+- Unnecessary external dependencies.
+
+11. Run the complete pytest suite.
+Do not remove, disable, or weaken failing tests to achieve a passing result.
+
+12. Run git diff --check.
+
+13. Report:
+- Files created or modified.
+- Problems identified.
+- Corrections made.
+- Actual number of passing, failing, or skipped tests.
+- Remaining limitations and potential risks.
+
+IMPORTANT:
+Do not modify AI_DEVELOPMENT_LOG.md.
+Do not perform a Git commit.
+Do not make changes to unrelated modules.
+Keep the project small, reliable, and suitable for a university AI-Assisted Development exam.
+
+### Issues Found and Corrections
+
+During final review, GitHub Copilot found a path
+round-trip defect.
+
+The JSON loader accepted only direct image references
+such as images/<filename>, but the saver could accept
+nested paths that the loader would reject later.
+
+GitHub Copilot:
+- Tightened save-side path validation.
+- Added a regression test for rejected nested paths.
+- Verified persistent manager injection during startup.
+- Confirmed existing manager constructor compatibility.
+
+### AI-Reported Validation
+
+- Full suite: 58 passed, 0 failed, 0 skipped.
+- Focused persistence tests: 21 passed.
+- git diff --check: passed.
+- No Pylance diagnostics in the persistence coordinator.
+
+## 5. Independent Verification
+
+**Automated testing**
+
+The complete pytest suite was executed locally.
+
+Final result:
+58 passed, 0 failed, 0 skipped.
+
+**Manual testing**
+
+The developer verified that:
+- Added clothing items remain available after restarting.
+- Clothing images are restored correctly.
+- Deleted items stay deleted after restarting.
+- Original image files are preserved.
+- The existing wardrobe interface remains functional.
+
+## 6. Challenges and Lessons Learned
+
+### Challenge 1 – Persistent Storage Reliability
+
+Writing directly to a JSON file risks leaving it
+incomplete if an operation fails.
+
+The solution used atomic file replacement to protect
+previously saved data.
+
+### Challenge 2 – Image Portability and Safety
+
+Absolute image paths would make saved data dependent
+on the original file locations.
+
+The solution introduced application-managed image
+copies and relative JSON image references.
+
+### Challenge 3 – Save/Load Path Consistency
+
+An image path accepted by the save operation could be
+rejected by the loader during the next startup.
+
+GitHub Copilot detected this during final review,
+corrected the validation, and added a regression test.
+
+### Lessons Learned
+
+Persistent storage requires more than simply writing
+JSON. The application must handle corrupted files,
+failed writes, image references, and safe recovery.
+
+AI-generated code should be tested both with automated
+tests and by restarting the real application.
+
+## 7. AI Tool Choice and Comparison
+
+GitHub Copilot Free was the primary coding assistant
+for architecture planning, implementation, debugging,
+refactoring, and pytest test generation.
+
+ChatGPT supported prompt preparation, development
+planning, analysis of AI results, and documentation.
+
+## 8. Day 4 Summary
+
+Completed:
+- Versioned local JSON storage.
+- Automatic save and load of clothing items.
+- Persistent deletion.
+- Application-managed image copies.
+- Cross-platform data-directory selection.
+- Atomic JSON writes.
+- Invalid-data and recovery handling.
+- Path traversal protection.
+- Regression and compatibility testing.
+
+Final tests:
+58 passed, 0 failed, 0 skipped.
+
+Remaining limitations:
+- Corrupted data backups require manual recovery.
+- Multiple simultaneous app instances do not
+  coordinate writes.
+- Failed cleanup can leave an unused managed image.
+
+Next development phase:
+Module 3 – Outfit Builder and saved outfit functionality.
+
 
 
