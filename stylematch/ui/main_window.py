@@ -4,6 +4,8 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from stylematch.services.clothing_manager import ClothingManager
+from stylematch.services.outfit_manager import OutfitManager
+from stylematch.storage.outfit_persistence import OutfitPersistence
 from stylematch.ui.screens import (
     AddClothingScreen,
     OutfitBuilderScreen,
@@ -24,10 +26,16 @@ class StyleMatchWindow:
         self,
         root: tk.Tk,
         manager: ClothingManager | None = None,
+        outfit_manager: OutfitManager | None = None,
     ) -> None:
         self.root = root
         self.clothing_manager = (
             manager if manager is not None else ClothingManager()
+        )
+        self.outfit_manager = (
+            outfit_manager
+            if outfit_manager is not None
+            else OutfitManager(self.clothing_manager)
         )
         self.current_screen_name: str | None = None
         self.root.title(WINDOW_TITLE)
@@ -223,6 +231,10 @@ class StyleMatchWindow:
             manager=self.clothing_manager,
             on_add_clothing=lambda: self.show_screen("Add Clothing"),
         )
+        saved_outfits = SavedOutfitsScreen(
+            self.content,
+            outfit_manager=self.outfit_manager,
+        )
         self.screens: dict[str, ttk.Frame] = {
             "My Wardrobe": wardrobe,
             "Add Clothing": AddClothingScreen(
@@ -231,15 +243,25 @@ class StyleMatchWindow:
                 manager=self.clothing_manager,
                 on_item_added=wardrobe.refresh,
             ),
-            "Outfit Builder": OutfitBuilderScreen(self.content),
-            "Saved Outfits": SavedOutfitsScreen(self.content),
+            "Outfit Builder": OutfitBuilderScreen(
+                self.content,
+                manager=self.clothing_manager,
+                outfit_manager=self.outfit_manager,
+                on_saved=saved_outfits.refresh,
+            ),
+            "Saved Outfits": saved_outfits,
         }
         for screen in self.screens.values():
             screen.grid(row=0, column=0, sticky="nsew")
 
     def show_screen(self, screen_name: str) -> None:
         """Raise a screen in the shared content area and highlight its navigation."""
-        self.screens[screen_name].tkraise()
+        screen = self.screens[screen_name]
+        if isinstance(screen, OutfitBuilderScreen):
+            screen.refresh_from_wardrobe()
+        elif isinstance(screen, SavedOutfitsScreen):
+            screen.refresh()
+        screen.tkraise()
         self.current_screen_name = screen_name
         for name, button in self.nav_buttons.items():
             button.configure(
@@ -252,12 +274,36 @@ def main(
     startup_warning: str | None = None,
 ) -> None:
     root = tk.Tk()
-    StyleMatchWindow(root, manager=manager)
-    if startup_warning:
+    clothing_manager = manager if manager is not None else ClothingManager()
+    outfit_persistence = (
+        OutfitPersistence(clothing_manager.persistence.data_dir)
+        if clothing_manager.persistence is not None
+        else None
+    )
+    outfit_manager = OutfitManager(
+        clothing_manager=clothing_manager,
+        persistence=outfit_persistence,
+    )
+    StyleMatchWindow(
+        root,
+        manager=clothing_manager,
+        outfit_manager=outfit_manager,
+    )
+    warnings = [
+        warning
+        for warning in (
+            startup_warning,
+            outfit_persistence.startup_warning
+            if outfit_persistence is not None
+            else None,
+        )
+        if warning
+    ]
+    if warnings:
         root.after_idle(
             lambda: messagebox.showwarning(
-                "Wardrobe data warning",
-                startup_warning,
+                "Local data warning",
+                "\n\n".join(warnings),
                 parent=root,
             )
         )

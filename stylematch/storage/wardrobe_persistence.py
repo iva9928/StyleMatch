@@ -8,7 +8,12 @@ from uuid import uuid4
 from PIL import Image
 
 from stylematch.images import validate_image
-from stylematch.models.clothing import CATEGORIES, ClothingItem
+from stylematch.models.clothing import (
+    CATEGORIES,
+    PRIMARY_COLORS,
+    STYLES,
+    ClothingItem,
+)
 from stylematch.storage.data_paths import get_app_data_dir
 from stylematch.storage.json_store import JSONStore, StorageError
 
@@ -76,6 +81,17 @@ class WardrobePersistence:
         for item in items:
             if item.id in seen_ids:
                 raise StorageError(f"Duplicate clothing item ID '{item.id}'.")
+            if (
+                item.primary_color is not None
+                and item.primary_color not in PRIMARY_COLORS
+            ):
+                raise StorageError(
+                    f"Clothing item '{item.id}' has an invalid primary color."
+                )
+            if item.style is not None and item.style not in STYLES:
+                raise StorageError(
+                    f"Clothing item '{item.id}' has an invalid style."
+                )
             seen_ids.add(item.id)
             records.append(
                 {
@@ -83,6 +99,12 @@ class WardrobePersistence:
                     "name": item.name,
                     "category": item.category,
                     "image_path": self._relative_image_reference(item.image_path),
+                    **(
+                        {"primary_color": item.primary_color}
+                        if item.primary_color is not None
+                        else {}
+                    ),
+                    **({"style": item.style} if item.style is not None else {}),
                 }
             )
 
@@ -186,6 +208,16 @@ class WardrobePersistence:
                 raise ValueError(
                     f"Clothing record '{item_id}' has an invalid image reference."
                 )
+            primary_color = record.get("primary_color")
+            if primary_color is not None and primary_color not in PRIMARY_COLORS:
+                raise ValueError(
+                    f"Clothing record '{item_id}' has an invalid primary color."
+                )
+            style = record.get("style")
+            if style is not None and style not in STYLES:
+                raise ValueError(
+                    f"Clothing record '{item_id}' has an invalid style."
+                )
             seen_ids.add(item_id)
             resolved_image = (
                 self.resolve_image_reference(image_reference)
@@ -198,6 +230,8 @@ class WardrobePersistence:
                     name=name,
                     category=category,
                     image_path=resolved_image,
+                    primary_color=primary_color,
+                    style=style,
                 )
             )
         return items

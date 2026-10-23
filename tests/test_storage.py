@@ -70,6 +70,112 @@ def test_persistent_manager_restores_items_and_imported_images(tmp_path):
     assert restored.list_items() == [first, second]
 
 
+def test_jackets_are_added_and_restored_without_changing_outerwear(tmp_path):
+    source = _create_image(tmp_path / "original.png")
+    data_dir = tmp_path / "application-data"
+    manager = ClothingManager(persistence=WardrobePersistence(data_dir))
+
+    outerwear = manager.add_item("Raincoat", "Outerwear", source)
+    jacket = manager.add_item("Leather jacket", "Jackets", source)
+    document = json.loads(
+        (data_dir / "wardrobe.json").read_text(encoding="utf-8")
+    )
+    restored = ClothingManager(persistence=WardrobePersistence(data_dir))
+
+    assert document["version"] == 1
+    assert [record["category"] for record in document["clothing"]] == [
+        "Outerwear",
+        "Jackets",
+    ]
+    assert restored.list_items() == [outerwear, jacket]
+    assert restored.list_items("Outerwear") == [outerwear]
+    assert restored.list_items("Jackets") == [jacket]
+    assert source.is_file()
+    assert Path(outerwear.image_path).is_file()
+    assert Path(jacket.image_path).is_file()
+
+
+def test_legacy_wardrobe_metadata_defaults_and_update_round_trip(tmp_path):
+    data_dir = tmp_path / "application-data"
+    data_dir.mkdir()
+    (data_dir / "images").mkdir()
+    image_path = _create_image(data_dir / "images" / "managed.png")
+    record = {
+        "version": 1,
+        "clothing": [
+            {
+                "id": "legacy-top",
+                "name": "Legacy shirt",
+                "category": "Tops",
+                "image_path": "images/managed.png",
+            }
+        ],
+    }
+    wardrobe_path = data_dir / "wardrobe.json"
+    original_data = json.dumps(record, indent=2)
+    wardrobe_path.write_text(original_data, encoding="utf-8")
+    persistence = WardrobePersistence(data_dir)
+    manager = ClothingManager(persistence)
+    item = manager.list_items()[0]
+
+    assert item.primary_color is None
+    assert item.style is None
+    assert wardrobe_path.read_text(encoding="utf-8") == original_data
+    original_managed_path = item.image_path
+    updated = manager.update_metadata(item.id, "White", "Business")
+    document = json.loads(wardrobe_path.read_text(encoding="utf-8"))
+    restored = ClothingManager(WardrobePersistence(data_dir)).list_items()[0]
+
+    assert updated.id == "legacy-top"
+    assert updated.image_path == original_managed_path
+    assert Path(original_managed_path).is_file()
+    assert document["version"] == 1
+    assert document["clothing"][0]["primary_color"] == "White"
+    assert document["clothing"][0]["style"] == "Business"
+    assert restored == updated
+    assert image_path.is_file()
+
+
+def test_metadata_update_persistence_failure_keeps_memory_and_image_safe(
+    tmp_path,
+    monkeypatch,
+):
+    source = _create_image(tmp_path / "original.png")
+    persistence = WardrobePersistence(tmp_path / "application-data")
+    manager = ClothingManager(persistence)
+    item = manager.add_item("Shirt", "Tops", source)
+    original_json = persistence.store.path.read_bytes()
+    managed_image = Path(item.image_path)
+
+    def fail_save(_items):
+        raise StorageError("simulated metadata update failure")
+
+    monkeypatch.setattr(persistence, "save_items", fail_save)
+    with pytest.raises(StorageError, match="metadata update failure"):
+        manager.update_metadata(item.id, "Navy", "Casual")
+
+    assert manager.list_items() == [item]
+    assert managed_image.is_file()
+    assert source.is_file()
+    assert persistence.store.path.read_bytes() == original_json
+
+
+def test_persistence_rejects_invalid_metadata_before_writing(tmp_path):
+    persistence = WardrobePersistence(tmp_path / "application-data")
+    original = persistence.store.path
+    item = ClothingItem(
+        "invalid-color",
+        "Shirt",
+        "Tops",
+        primary_color="Chartreuse",
+    )
+
+    with pytest.raises(StorageError, match="invalid primary color"):
+        persistence.save_items([item])
+
+    assert not original.exists()
+
+
 @pytest.mark.parametrize(
     ("image_format", "extension"),
     [("PNG", ".png"), ("JPEG", ".jpg"), ("WEBP", ".webp")],

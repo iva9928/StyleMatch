@@ -5,7 +5,22 @@ This module defines simple data structures and helpers for clothing items. Busin
 from dataclasses import dataclass
 from typing import Optional
 
-CATEGORIES = ("Tops", "Bottoms", "Dresses", "Shoes", "Outerwear")
+CATEGORIES = ("Tops", "Bottoms", "Dresses", "Shoes", "Outerwear", "Jackets")
+PRIMARY_COLORS = (
+    "Black",
+    "White",
+    "Gray",
+    "Navy",
+    "Beige",
+    "Brown",
+    "Red",
+    "Blue",
+    "Green",
+    "Yellow",
+    "Pink",
+    "Purple",
+)
+STYLES = ("Casual", "Formal", "Business", "Sporty", "Outdoor", "Streetwear")
 
 
 @dataclass
@@ -22,10 +37,29 @@ class ClothingItem:
     name: str
     category: str
     image_path: Optional[str] = None
+    primary_color: str | None = None
+    style: str | None = None
 
     def to_dict(self) -> dict:
-        return {"id": self.id, "name": self.name, "category": self.category, "image_path": self.image_path}
+        data = {
+            "id": self.id,
+            "name": self.name,
+            "category": self.category,
+            "image_path": self.image_path,
+        }
+        if self.primary_color is not None:
+            data["primary_color"] = self.primary_color
+        if self.style is not None:
+            data["style"] = self.style
+        return data
 
     @staticmethod
     def from_dict(d: dict) -> "ClothingItem":
-        return ClothingItem(id=d["id"], name=d["name"], category=d.get("category", ""), image_path=d.get("image_path"))
+        return ClothingItem(
+            id=d["id"],
+            name=d["name"],
+            category=d.get("category", ""),
+            image_path=d.get("image_path"),
+            primary_color=d.get("primary_color"),
+            style=d.get("style"),
+        )

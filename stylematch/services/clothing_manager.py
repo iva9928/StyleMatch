@@ -1,10 +1,16 @@
 """Clothing management with optional local persistence."""
 
+from dataclasses import replace
 from pathlib import Path
 from uuid import uuid4
 
 from stylematch.images import validate_image
-from stylematch.models.clothing import CATEGORIES, ClothingItem
+from stylematch.models.clothing import (
+    CATEGORIES,
+    PRIMARY_COLORS,
+    STYLES,
+    ClothingItem,
+)
 from stylematch.storage.json_store import StorageError
 from stylematch.storage.wardrobe_persistence import (
     PostCommitStorageError,
@@ -28,6 +34,8 @@ class ClothingManager:
         name: str,
         category: str,
         image_path: str | Path | None,
+        primary_color: str | None = None,
+        style: str | None = None,
     ) -> ClothingItem:
         """Validate and add an item, returning the stored model."""
         normalized_name = name.strip() if isinstance(name, str) else ""
@@ -37,6 +45,10 @@ class ClothingManager:
             raise ValueError("Select a valid clothing category.")
         if not image_path:
             raise ValueError("Choose an image for this clothing item.")
+        normalized_color = self._validate_metadata(
+            primary_color, PRIMARY_COLORS, "primary color"
+        )
+        normalized_style = self._validate_metadata(style, STYLES, "style")
 
         normalized_path = str(Path(image_path).expanduser())
         validate_image(normalized_path)
@@ -51,6 +63,8 @@ class ClothingManager:
             name=normalized_name,
             category=category,
             image_path=managed_path,
+            primary_color=normalized_color,
+            style=normalized_style,
         )
 
         if self.persistence is not None:
@@ -68,6 +82,45 @@ class ClothingManager:
 
         self._items[item.id] = item
         return item
+
+    def update_metadata(
+        self,
+        item_id: str,
+        primary_color: str | None,
+        style: str | None,
+    ) -> ClothingItem:
+        """Update optional metadata without changing the garment or its image."""
+        item = self._items.get(item_id)
+        if item is None:
+            raise ValueError("This clothing item is no longer in your wardrobe.")
+
+        updated = replace(
+            item,
+            primary_color=self._validate_metadata(
+                primary_color, PRIMARY_COLORS, "primary color"
+            ),
+            style=self._validate_metadata(style, STYLES, "style"),
+        )
+        if self.persistence is not None:
+            snapshot = [
+                updated if existing_id == item_id else existing
+                for existing_id, existing in self._items.items()
+            ]
+            self.persistence.save_items(snapshot)
+        self._items[item_id] = updated
+        return updated
+
+    @staticmethod
+    def _validate_metadata(
+        value: str | None,
+        choices: tuple[str, ...],
+        label: str,
+    ) -> str | None:
+        if value is None or value == "":
+            return None
+        if not isinstance(value, str) or value not in choices:
+            raise ValueError(f"Select a valid {label}.")
+        return value
 
     def list_items(self, category: str | None = None) -> list[ClothingItem]:
         """Return all items, optionally limited to one valid category."""

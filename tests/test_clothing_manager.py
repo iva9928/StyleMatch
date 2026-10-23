@@ -5,6 +5,7 @@ from hashlib import sha256
 import pytest
 from PIL import Image
 
+from stylematch.models.clothing import PRIMARY_COLORS, STYLES
 from stylematch.images import (
     ImageValidationError,
     create_thumbnail,
@@ -48,6 +49,85 @@ def test_add_item_rejects_invalid_category(tmp_path):
 
     with pytest.raises(ValueError, match="category"):
         manager.add_item("Shirt", "Accessories", image_path)
+
+
+@pytest.mark.parametrize(
+    ("primary_color", "style", "message"),
+    [
+        ("Chartreuse", None, "primary color"),
+        (None, "Vintage", "style"),
+        (42, None, "primary color"),
+    ],
+)
+def test_add_item_rejects_invalid_metadata(
+    tmp_path,
+    primary_color,
+    style,
+    message,
+):
+    manager = ClothingManager()
+    image_path = _create_image(tmp_path / "shirt.png")
+
+    with pytest.raises(ValueError, match=message):
+        manager.add_item(
+            "Shirt",
+            "Tops",
+            image_path,
+            primary_color=primary_color,
+            style=style,
+        )
+
+    assert manager.list_items() == []
+
+
+def test_add_item_accepts_optional_color_and_style_metadata(tmp_path):
+    manager = ClothingManager()
+    image_path = _create_image(tmp_path / "shirt.png")
+
+    legacy_style_item = manager.add_item("Shirt", "Tops", image_path)
+    styled_item = manager.add_item(
+        "Blue jacket",
+        "Jackets",
+        image_path,
+        primary_color="Blue",
+        style="Casual",
+    )
+
+    assert legacy_style_item.primary_color is None
+    assert legacy_style_item.style is None
+    assert styled_item.primary_color == "Blue"
+    assert styled_item.style == "Casual"
+    assert PRIMARY_COLORS[0] == "Black"
+    assert STYLES[-1] == "Streetwear"
+
+
+def test_update_metadata_preserves_item_identity_and_image(tmp_path):
+    manager = ClothingManager()
+    image_path = _create_image(tmp_path / "shirt.png")
+    item = manager.add_item("Blue jacket", "Jackets", image_path)
+
+    updated = manager.update_metadata(item.id, "Navy", "Outdoor")
+
+    assert updated.id == item.id
+    assert updated.name == item.name
+    assert updated.category == item.category
+    assert updated.image_path == item.image_path
+    assert updated.primary_color == "Navy"
+    assert updated.style == "Outdoor"
+    assert manager.list_items() == [updated]
+
+
+def test_update_metadata_rejects_invalid_values_without_changing_item(tmp_path):
+    manager = ClothingManager()
+    image_path = _create_image(tmp_path / "shirt.png")
+    item = manager.add_item("Blue jacket", "Jackets", image_path)
+
+    with pytest.raises(ValueError, match="primary color"):
+        manager.update_metadata(item.id, "Chartreuse", "Outdoor")
+    with pytest.raises(ValueError, match="no longer in your wardrobe"):
+        manager.update_metadata("missing", "Blue", "Casual")
+
+    assert manager.list_items() == [item]
 
 
 def test_add_item_rejects_missing_image_path():
@@ -144,10 +224,12 @@ def test_list_all_and_filter_by_category(tmp_path):
     image_path = _create_image(tmp_path / "item.png")
     top = manager.add_item("Top", "Tops", image_path)
     shoes = manager.add_item("Shoes", "Shoes", image_path)
+    jacket = manager.add_item("Jacket", "Jackets", image_path)
 
-    assert manager.list_items() == [top, shoes]
+    assert manager.list_items() == [top, shoes, jacket]
     assert manager.list_items("Tops") == [top]
     assert manager.list_items("Shoes") == [shoes]
+    assert manager.list_items("Jackets") == [jacket]
 
 
 def test_delete_existing_and_nonexistent_items(tmp_path):

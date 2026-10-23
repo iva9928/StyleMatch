@@ -8,7 +8,11 @@ from PIL import Image
 
 import stylematch.ui.main_window as main_window
 from stylematch.ui.main_window import StyleMatchWindow
-from stylematch.ui.screens import AddClothingScreen, WardrobeScreen
+from stylematch.ui.screens import (
+    AddClothingScreen,
+    OutfitBuilderScreen,
+    WardrobeScreen,
+)
 
 
 @pytest.fixture
@@ -110,6 +114,7 @@ def test_wardrobe_category_filter_is_initialized(app):
         "Dresses",
         "Shoes",
         "Outerwear",
+        "Jackets",
     )
     assert str(wardrobe.category_select.cget("state")) == "readonly"
 
@@ -185,6 +190,8 @@ def test_add_button_adds_item_and_renders_complete_wardrobe_card(
 
     add_clothing.name_var.set(" pink T-shirt ")
     add_clothing.category_var.set("Tops")
+    add_clothing.color_var.set("Pink")
+    add_clothing.style_var.set("Casual")
     add_clothing.selected_image = str(image_path)
     add_clothing.add_button.invoke()
     tk_root.update_idletasks()
@@ -193,9 +200,13 @@ def test_add_button_adds_item_and_renders_complete_wardrobe_card(
     assert len(items) == 1
     assert items[0].name == "pink T-shirt"
     assert items[0].category == "Tops"
+    assert items[0].primary_color == "Pink"
+    assert items[0].style == "Casual"
     assert confirmations and confirmations[0][0] == "Clothing added"
     assert add_clothing.name_var.get() == ""
     assert add_clothing.category_var.get() == ""
+    assert add_clothing.color_var.get() == ""
+    assert add_clothing.style_var.get() == ""
     assert add_clothing.selected_image is None
 
     cards = wardrobe.gallery.content.winfo_children()
@@ -259,6 +270,257 @@ def test_wardrobe_filters_added_items_and_shows_category_empty_state(
     tk_root.update_idletasks()
 
     assert wardrobe.empty_message.cget("text") == "No dresses in your wardrobe yet."
+
+
+def test_jackets_filter_and_outfit_selectors_are_category_specific(
+    app,
+    tk_root,
+    tmp_path,
+):
+    image_path = tmp_path / "items.png"
+    Image.new("RGB", (80, 80), color="plum").save(image_path)
+    top = app.clothing_manager.add_item("White shirt", "Tops", image_path)
+    second_top = app.clothing_manager.add_item("Blue shirt", "Tops", image_path)
+    bottom = app.clothing_manager.add_item("Black jeans", "Bottoms", image_path)
+    dress = app.clothing_manager.add_item("Summer dress", "Dresses", image_path)
+    shoes = app.clothing_manager.add_item("Brown shoes", "Shoes", image_path)
+    outerwear = app.clothing_manager.add_item("Raincoat", "Outerwear", image_path)
+    jacket = app.clothing_manager.add_item("Denim jacket", "Jackets", image_path)
+    wardrobe = app.screens["My Wardrobe"]
+    builder = app.screens["Outfit Builder"]
+
+    assert isinstance(builder, OutfitBuilderScreen)
+    builder.refresh_from_wardrobe()
+    assert tuple(builder.selectors["Tops"].cget("values")) == (
+        "",
+        "White shirt",
+        "Blue shirt",
+    )
+    assert tuple(builder.selectors["Bottoms"].cget("values")) == (
+        "",
+        "Black jeans",
+    )
+    assert tuple(builder.selectors["Dresses"].cget("values")) == (
+        "",
+        "Summer dress",
+    )
+    assert tuple(builder.selectors["Shoes"].cget("values")) == ("", "Brown shoes")
+    assert tuple(builder.selectors["Outerwear"].cget("values")) == (
+        "",
+        "Raincoat",
+    )
+    assert tuple(builder.selectors["Jackets"].cget("values")) == (
+        "",
+        "Denim jacket",
+    )
+    assert "Brown shoes" not in builder.selectors["Tops"].cget("values")
+    assert "Brown shoes" not in builder.selectors["Outerwear"].cget("values")
+
+    builder.selectors["Tops"].set("White shirt")
+    builder.selectors["Tops"].event_generate("<<ComboboxSelected>>")
+    tk_root.update_idletasks()
+    assert builder._selected_items() == [top]
+    assert second_top.id != top.id
+    assert any(
+        child.winfo_class() == "TLabel" and child.cget("text") == top.name
+        for cell in builder.preview.winfo_children()
+        for child in cell.winfo_children()
+    )
+
+    wardrobe.category_select.set("Jackets")
+    wardrobe.category_select.event_generate("<<ComboboxSelected>>")
+    tk_root.update_idletasks()
+    assert len(wardrobe.gallery.content.winfo_children()) == 1
+    assert wardrobe.gallery.content.winfo_children()[0].winfo_children()[1].cget(
+        "text"
+    ) == jacket.name
+    assert shoes.category == "Shoes"
+    assert bottom.category == "Bottoms"
+    assert dress.category == "Dresses"
+    assert outerwear.category == "Outerwear"
+
+
+def test_add_clothing_category_dropdown_contains_all_six_categories(app):
+    add_clothing = app.screens["Add Clothing"]
+
+    assert tuple(add_clothing.category_select.cget("values")) == (
+        "Tops",
+        "Bottoms",
+        "Dresses",
+        "Shoes",
+        "Outerwear",
+        "Jackets",
+    )
+    assert tuple(add_clothing.color_select.cget("values")) == (
+        "",
+        "Black",
+        "White",
+        "Gray",
+        "Navy",
+        "Beige",
+        "Brown",
+        "Red",
+        "Blue",
+        "Green",
+        "Yellow",
+        "Pink",
+        "Purple",
+    )
+    assert tuple(add_clothing.style_select.cget("values")) == (
+        "",
+        "Casual",
+        "Formal",
+        "Business",
+        "Sporty",
+        "Outdoor",
+        "Streetwear",
+    )
+
+
+def test_edit_wardrobe_item_updates_metadata_without_changing_identity(
+    app,
+    tk_root,
+    monkeypatch,
+    tmp_path,
+):
+    image_path = tmp_path / "existing.png"
+    Image.new("RGB", (80, 120), color="navy").save(image_path)
+    item = app.clothing_manager.add_item(
+        "Everyday jacket",
+        "Jackets",
+        image_path,
+    )
+    wardrobe = app.screens["My Wardrobe"]
+    confirmations = []
+    monkeypatch.setattr(
+        "stylematch.ui.screens.messagebox.showinfo",
+        lambda *args, **_kwargs: confirmations.append(args),
+    )
+
+    wardrobe._edit_item(item.id)
+    dialog = wardrobe.edit_dialog
+    dialog.color_var.set("Navy")
+    dialog.style_var.set("Casual")
+    dialog._save()
+    tk_root.update_idletasks()
+
+    updated = app.clothing_manager.list_items()[0]
+    assert updated.id == item.id
+    assert updated.name == item.name
+    assert updated.category == item.category
+    assert updated.image_path == item.image_path
+    assert updated.primary_color == "Navy"
+    assert updated.style == "Casual"
+    assert confirmations
+    assert image_path.is_file()
+
+
+def test_suggest_outfit_preserves_manual_selection_when_no_candidate_exists(
+    app,
+    tk_root,
+    monkeypatch,
+    tmp_path,
+):
+    image_path = tmp_path / "single-top.png"
+    Image.new("RGB", (80, 120), color="plum").save(image_path)
+    item = app.clothing_manager.add_item("Manual top", "Tops", image_path)
+    builder = app.screens["Outfit Builder"]
+    builder.refresh_from_wardrobe()
+    builder.selector_vars["Tops"].set("Manual top")
+    builder._selection_changed()
+    messages = []
+    monkeypatch.setattr(
+        "stylematch.ui.screens.messagebox.showinfo",
+        lambda *args, **_kwargs: messages.append(args),
+    )
+
+    builder._suggest_outfit()
+    tk_root.update_idletasks()
+
+    assert builder._selected_items() == [item]
+    assert builder.selector_vars["Tops"].get() == "Manual top"
+    assert messages
+
+
+def test_suggestion_displays_heuristic_explanation(app, tmp_path):
+    image_path = tmp_path / "complete.png"
+    Image.new("RGB", (80, 120), color="navy").save(image_path)
+    app.clothing_manager.add_item(
+        "Navy shirt",
+        "Tops",
+        image_path,
+        primary_color="Navy",
+        style="Casual",
+    )
+    app.clothing_manager.add_item(
+        "Beige trousers",
+        "Bottoms",
+        image_path,
+        primary_color="Beige",
+        style="Casual",
+    )
+    app.clothing_manager.add_item(
+        "Navy shoes",
+        "Shoes",
+        image_path,
+        primary_color="Navy",
+        style="Casual",
+    )
+    builder = app.screens["Outfit Builder"]
+    builder.refresh_from_wardrobe()
+
+    builder._suggest_outfit()
+
+    assert "Heuristic compatibility estimate:" in builder.compatibility_var.get()
+    assert "Colors:" in builder.compatibility_var.get()
+    assert "Styles:" in builder.compatibility_var.get()
+
+
+
+def test_outfit_selector_layout_is_accessible_at_minimum_window_size(app, tk_root):
+    builder = app.screens["Outfit Builder"]
+    tk_root.geometry("850x600")
+    tk_root.update_idletasks()
+
+    assert set(builder.selectors) == {
+        "Tops",
+        "Bottoms",
+        "Dresses",
+        "Shoes",
+        "Outerwear",
+        "Jackets",
+    }
+    assert builder.selector_area.canvas.winfo_height() > 0
+    assert builder.selector_area.canvas.cget("scrollregion")
+    for category, selector in builder.selectors.items():
+        assert selector.winfo_manager() == "grid"
+        assert str(selector.cget("state")) == "readonly"
+        assert selector.master is builder.selector_area.content
+        assert builder.selector_labels[category].master is selector.master
+        assert int(builder.selector_labels[category].grid_info()["row"]) < int(
+            selector.grid_info()["row"]
+        )
+    form_rows = [
+        int(child.grid_info()["row"])
+        for child in builder.selector_area.content.winfo_children()
+    ]
+    assert len(form_rows) == len(set(form_rows))
+
+
+def test_duplicate_clothing_names_are_distinguished_without_ids(app, tmp_path):
+    image_path = tmp_path / "duplicate.png"
+    Image.new("RGB", (80, 80), color="plum").save(image_path)
+    first = app.clothing_manager.add_item("Black jacket", "Jackets", image_path)
+    second = app.clothing_manager.add_item("Black jacket", "Jackets", image_path)
+    builder = app.screens["Outfit Builder"]
+    builder.refresh_from_wardrobe()
+    labels = tuple(builder.selectors["Jackets"].cget("values"))
+
+    assert labels == ("", "Black jacket (1)", "Black jacket (2)")
+    assert first.id not in labels[1]
+    assert second.id not in labels[2]
+    builder.selectors["Jackets"].set(labels[2])
+    assert builder._selected_items() == [second]
 
 
 @pytest.mark.parametrize(("confirm", "expected_count"), [(True, 0), (False, 1)])
